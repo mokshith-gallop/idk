@@ -1578,3 +1578,478 @@ suites:
       - table: vw_client_executive_summary
         expect_object_type: VIEW
 
+  # ======================================================================
+  # AC6 — Queryability: SELECT * LIMIT 0 on every object (115 objects)
+  # Plus 3 cross-tier join queries.
+  # Pattern: query_performance, mode: measure
+  # Any query that fails to run surfaces as ERROR.
+  # ======================================================================
+  - pattern: query_performance
+    id: queryability-staging
+    story_id: NBCS-TARGET-SCHEMA-AC6
+    queries:
+      - id: select-staging-stg_crm_client
+        mode: measure
+        sql: "SELECT * FROM staging.stg_crm_client LIMIT 0"
+      - id: select-staging-stg_crm_client_contact
+        mode: measure
+        sql: "SELECT * FROM staging.stg_crm_client_contact LIMIT 0"
+      - id: select-staging-stg_crm_program
+        mode: measure
+        sql: "SELECT * FROM staging.stg_crm_program LIMIT 0"
+      - id: select-staging-stg_crm_contract
+        mode: measure
+        sql: "SELECT * FROM staging.stg_crm_contract LIMIT 0"
+      - id: select-staging-stg_crm_contract_line
+        mode: measure
+        sql: "SELECT * FROM staging.stg_crm_contract_line LIMIT 0"
+      - id: select-staging-stg_crm_sla_target
+        mode: measure
+        sql: "SELECT * FROM staging.stg_crm_sla_target LIMIT 0"
+      - id: select-staging-stg_hr_agent
+        mode: measure
+        sql: "SELECT * FROM staging.stg_hr_agent LIMIT 0"
+      - id: select-staging-stg_hr_org_unit
+        mode: measure
+        sql: "SELECT * FROM staging.stg_hr_org_unit LIMIT 0"
+      - id: select-staging-stg_hr_employment_event
+        mode: measure
+        sql: "SELECT * FROM staging.stg_hr_employment_event LIMIT 0"
+      - id: select-staging-stg_hr_skill
+        mode: measure
+        sql: "SELECT * FROM staging.stg_hr_skill LIMIT 0"
+      - id: select-staging-stg_hr_agent_skill
+        mode: measure
+        sql: "SELECT * FROM staging.stg_hr_agent_skill LIMIT 0"
+      - id: select-staging-stg_wfm_shift
+        mode: measure
+        sql: "SELECT * FROM staging.stg_wfm_shift LIMIT 0"
+      - id: select-staging-stg_wfm_schedule
+        mode: measure
+        sql: "SELECT * FROM staging.stg_wfm_schedule LIMIT 0"
+      - id: select-staging-stg_wfm_adherence_event
+        mode: measure
+        sql: "SELECT * FROM staging.stg_wfm_adherence_event LIMIT 0"
+      - id: select-staging-stg_wfm_forecast
+        mode: measure
+        sql: "SELECT * FROM staging.stg_wfm_forecast LIMIT 0"
+      - id: select-staging-stg_wfm_timeoff_request
+        mode: measure
+        sql: "SELECT * FROM staging.stg_wfm_timeoff_request LIMIT 0"
+      - id: select-staging-stg_tel_call
+        mode: measure
+        sql: "SELECT * FROM staging.stg_tel_call LIMIT 0"
+      - id: select-staging-stg_tel_call_segment
+        mode: measure
+        sql: "SELECT * FROM staging.stg_tel_call_segment LIMIT 0"
+      - id: select-staging-stg_tel_queue
+        mode: measure
+        sql: "SELECT * FROM staging.stg_tel_queue LIMIT 0"
+      - id: select-staging-stg_tel_agent_state_event
+        mode: measure
+        sql: "SELECT * FROM staging.stg_tel_agent_state_event LIMIT 0"
+      - id: select-staging-stg_tel_disposition_code
+        mode: measure
+        sql: "SELECT * FROM staging.stg_tel_disposition_code LIMIT 0"
+      - id: select-staging-stg_tkt_ticket
+        mode: measure
+        sql: "SELECT * FROM staging.stg_tkt_ticket LIMIT 0"
+      - id: select-staging-stg_tkt_ticket_event
+        mode: measure
+        sql: "SELECT * FROM staging.stg_tkt_ticket_event LIMIT 0"
+      - id: select-staging-stg_tkt_category
+        mode: measure
+        sql: "SELECT * FROM staging.stg_tkt_category LIMIT 0"
+      - id: select-staging-stg_fin_invoice
+        mode: measure
+        sql: "SELECT * FROM staging.stg_fin_invoice LIMIT 0"
+      - id: select-staging-stg_fin_invoice_line
+        mode: measure
+        sql: "SELECT * FROM staging.stg_fin_invoice_line LIMIT 0"
+      - id: select-staging-stg_fin_rate_card
+        mode: measure
+        sql: "SELECT * FROM staging.stg_fin_rate_card LIMIT 0"
+      - id: select-staging-stg_fin_timesheet_delta
+        mode: measure
+        sql: "SELECT * FROM staging.stg_fin_timesheet_delta LIMIT 0"
+      - id: select-staging-stg_fin_payroll_adj_delta
+        mode: measure
+        sql: "SELECT * FROM staging.stg_fin_payroll_adj_delta LIMIT 0"
+      - id: select-staging-stg_crm_sla_credit_delta
+        mode: measure
+        sql: "SELECT * FROM staging.stg_crm_sla_credit_delta LIMIT 0"
+      - id: select-staging-stg_tel_callback_request_delta
+        mode: measure
+        sql: "SELECT * FROM staging.stg_tel_callback_request_delta LIMIT 0"
+      - id: select-staging-stg_wfm_shift_swap_delta
+        mode: measure
+        sql: "SELECT * FROM staging.stg_wfm_shift_swap_delta LIMIT 0"
+      - id: select-staging-stg_tkt_worklog_delta
+        mode: measure
+        sql: "SELECT * FROM staging.stg_tkt_worklog_delta LIMIT 0"
+      - id: select-staging-stg_hr_attrition_event_delta
+        mode: measure
+        sql: "SELECT * FROM staging.stg_hr_attrition_event_delta LIMIT 0"
+      - id: select-staging-stg_fin_rate_card_change_delta
+        mode: measure
+        sql: "SELECT * FROM staging.stg_fin_rate_card_change_delta LIMIT 0"
+      - id: select-staging-stg_file_interaction_export
+        mode: measure
+        sql: "SELECT * FROM staging.stg_file_interaction_export LIMIT 0"
+      - id: select-staging-stg_file_survey_csat
+        mode: measure
+        sql: "SELECT * FROM staging.stg_file_survey_csat LIMIT 0"
+      - id: select-staging-stg_file_qa_forms
+        mode: measure
+        sql: "SELECT * FROM staging.stg_file_qa_forms LIMIT 0"
+      - id: select-staging-stg_file_ivr_logs
+        mode: measure
+        sql: "SELECT * FROM staging.stg_file_ivr_logs LIMIT 0"
+      - id: select-staging-stg_file_chat_transcripts
+        mode: measure
+        sql: "SELECT * FROM staging.stg_file_chat_transcripts LIMIT 0"
+      - id: select-staging-stg_file_roster
+        mode: measure
+        sql: "SELECT * FROM staging.stg_file_roster LIMIT 0"
+      - id: select-staging-stg_file_telco_invoice
+        mode: measure
+        sql: "SELECT * FROM staging.stg_file_telco_invoice LIMIT 0"
+      - id: select-staging-stg_file_dialer_result
+        mode: measure
+        sql: "SELECT * FROM staging.stg_file_dialer_result LIMIT 0"
+      - id: select-staging-stg_file_email_interaction
+        mode: measure
+        sql: "SELECT * FROM staging.stg_file_email_interaction LIMIT 0"
+      - id: select-staging-stg_file_speech_analytics
+        mode: measure
+        sql: "SELECT * FROM staging.stg_file_speech_analytics LIMIT 0"
+      - id: cross-tier-staging
+        mode: measure
+        sql: >
+          SELECT c.client_code, p.program_code
+          FROM staging.stg_crm_client c
+          JOIN staging.stg_crm_program p ON p.client_id = c.client_id
+          LIMIT 1
+
+  - pattern: query_performance
+    id: queryability-ods
+    story_id: NBCS-TARGET-SCHEMA-AC6
+    queries:
+      - id: select-ods-ods_program
+        mode: measure
+        sql: "SELECT * FROM ods.ods_program LIMIT 0"
+      - id: select-ods-ods_contract
+        mode: measure
+        sql: "SELECT * FROM ods.ods_contract LIMIT 0"
+      - id: select-ods-ods_contract_line
+        mode: measure
+        sql: "SELECT * FROM ods.ods_contract_line LIMIT 0"
+      - id: select-ods-ods_org_unit
+        mode: measure
+        sql: "SELECT * FROM ods.ods_org_unit LIMIT 0"
+      - id: select-ods-ods_queue
+        mode: measure
+        sql: "SELECT * FROM ods.ods_queue LIMIT 0"
+      - id: select-ods-ods_schedule
+        mode: measure
+        sql: "SELECT * FROM ods.ods_schedule LIMIT 0"
+      - id: select-ods-ods_adherence_event
+        mode: measure
+        sql: "SELECT * FROM ods.ods_adherence_event LIMIT 0"
+      - id: select-ods-ods_call
+        mode: measure
+        sql: "SELECT * FROM ods.ods_call LIMIT 0"
+      - id: select-ods-ods_ivr_session
+        mode: measure
+        sql: "SELECT * FROM ods.ods_ivr_session LIMIT 0"
+      - id: select-ods-ods_chat_session
+        mode: measure
+        sql: "SELECT * FROM ods.ods_chat_session LIMIT 0"
+      - id: select-ods-ods_email_interaction
+        mode: measure
+        sql: "SELECT * FROM ods.ods_email_interaction LIMIT 0"
+      - id: select-ods-ods_survey_response
+        mode: measure
+        sql: "SELECT * FROM ods.ods_survey_response LIMIT 0"
+      - id: select-ods-ods_qa_evaluation
+        mode: measure
+        sql: "SELECT * FROM ods.ods_qa_evaluation LIMIT 0"
+      - id: select-ods-ods_interaction
+        mode: measure
+        sql: "SELECT * FROM ods.ods_interaction LIMIT 0"
+      - id: select-ods-ods_dialer_attempt
+        mode: measure
+        sql: "SELECT * FROM ods.ods_dialer_attempt LIMIT 0"
+      - id: select-ods-ods_timesheet
+        mode: measure
+        sql: "SELECT * FROM ods.ods_timesheet LIMIT 0"
+      - id: select-ods-ods_payroll_adjustment
+        mode: measure
+        sql: "SELECT * FROM ods.ods_payroll_adjustment LIMIT 0"
+      - id: select-ods-ods_sla_credit
+        mode: measure
+        sql: "SELECT * FROM ods.ods_sla_credit LIMIT 0"
+      - id: select-ods-ods_callback_request
+        mode: measure
+        sql: "SELECT * FROM ods.ods_callback_request LIMIT 0"
+      - id: select-ods-ods_shift_swap
+        mode: measure
+        sql: "SELECT * FROM ods.ods_shift_swap LIMIT 0"
+      - id: select-ods-ods_ticket_worklog
+        mode: measure
+        sql: "SELECT * FROM ods.ods_ticket_worklog LIMIT 0"
+      - id: select-ods-ods_attrition_event
+        mode: measure
+        sql: "SELECT * FROM ods.ods_attrition_event LIMIT 0"
+      - id: select-ods-ods_rate_card
+        mode: measure
+        sql: "SELECT * FROM ods.ods_rate_card LIMIT 0"
+      - id: select-ods-ods_agent_scd2
+        mode: measure
+        sql: "SELECT * FROM ods.ods_agent_scd2 LIMIT 0"
+      - id: select-ods-ods_agent_skill_scd2
+        mode: measure
+        sql: "SELECT * FROM ods.ods_agent_skill_scd2 LIMIT 0"
+      - id: select-ods-ods_agent_assignment_scd2
+        mode: measure
+        sql: "SELECT * FROM ods.ods_agent_assignment_scd2 LIMIT 0"
+      - id: select-ods-ods_client_acid
+        mode: measure
+        sql: "SELECT * FROM ods.ods_client_acid LIMIT 0"
+      - id: select-ods-ods_agent_acid
+        mode: measure
+        sql: "SELECT * FROM ods.ods_agent_acid LIMIT 0"
+      - id: select-ods-ods_ticket_acid
+        mode: measure
+        sql: "SELECT * FROM ods.ods_ticket_acid LIMIT 0"
+      - id: select-ods-ods_invoice_acid
+        mode: measure
+        sql: "SELECT * FROM ods.ods_invoice_acid LIMIT 0"
+      - id: cross-tier-ods
+        mode: measure
+        sql: >
+          SELECT o.contract_id, cl.unit_rate
+          FROM ods.ods_contract o
+          JOIN ods.ods_contract_line cl ON cl.contract_id = o.contract_id
+          LIMIT 1
+
+  - pattern: query_performance
+    id: queryability-dm
+    story_id: NBCS-TARGET-SCHEMA-AC6
+    queries:
+      - id: select-dm-dim_date
+        mode: measure
+        sql: "SELECT * FROM dm.dim_date LIMIT 0"
+      - id: select-dm-dim_agent
+        mode: measure
+        sql: "SELECT * FROM dm.dim_agent LIMIT 0"
+      - id: select-dm-dim_client
+        mode: measure
+        sql: "SELECT * FROM dm.dim_client LIMIT 0"
+      - id: select-dm-dim_program
+        mode: measure
+        sql: "SELECT * FROM dm.dim_program LIMIT 0"
+      - id: select-dm-dim_queue
+        mode: measure
+        sql: "SELECT * FROM dm.dim_queue LIMIT 0"
+      - id: select-dm-dim_site
+        mode: measure
+        sql: "SELECT * FROM dm.dim_site LIMIT 0"
+      - id: select-dm-dim_shift
+        mode: measure
+        sql: "SELECT * FROM dm.dim_shift LIMIT 0"
+      - id: select-dm-dim_org
+        mode: measure
+        sql: "SELECT * FROM dm.dim_org LIMIT 0"
+      - id: select-dm-dim_disposition
+        mode: measure
+        sql: "SELECT * FROM dm.dim_disposition LIMIT 0"
+      - id: select-dm-fact_interaction
+        mode: measure
+        sql: "SELECT * FROM dm.fact_interaction LIMIT 0"
+      - id: select-dm-fact_agent_activity
+        mode: measure
+        sql: "SELECT * FROM dm.fact_agent_activity LIMIT 0"
+      - id: select-dm-fact_queue_interval
+        mode: measure
+        sql: "SELECT * FROM dm.fact_queue_interval LIMIT 0"
+      - id: select-dm-fact_csat_survey
+        mode: measure
+        sql: "SELECT * FROM dm.fact_csat_survey LIMIT 0"
+      - id: select-dm-fact_qa_evaluation
+        mode: measure
+        sql: "SELECT * FROM dm.fact_qa_evaluation LIMIT 0"
+      - id: select-dm-fact_billing_line
+        mode: measure
+        sql: "SELECT * FROM dm.fact_billing_line LIMIT 0"
+      - id: select-dm-fact_adherence_daily
+        mode: measure
+        sql: "SELECT * FROM dm.fact_adherence_daily LIMIT 0"
+      - id: select-dm-fact_ticket
+        mode: measure
+        sql: "SELECT * FROM dm.fact_ticket LIMIT 0"
+      - id: select-dm-fact_ivr_path
+        mode: measure
+        sql: "SELECT * FROM dm.fact_ivr_path LIMIT 0"
+      - id: select-dm-agg_agent_daily
+        mode: measure
+        sql: "SELECT * FROM dm.agg_agent_daily LIMIT 0"
+      - id: select-dm-agg_program_monthly
+        mode: measure
+        sql: "SELECT * FROM dm.agg_program_monthly LIMIT 0"
+      - id: select-dm-agg_queue_hourly
+        mode: measure
+        sql: "SELECT * FROM dm.agg_queue_hourly LIMIT 0"
+      - id: select-dm-agg_csat_rollup_monthly
+        mode: measure
+        sql: "SELECT * FROM dm.agg_csat_rollup_monthly LIMIT 0"
+      - id: select-dm-agg_billing_monthly
+        mode: measure
+        sql: "SELECT * FROM dm.agg_billing_monthly LIMIT 0"
+      - id: select-dm-mv_agent_weekly
+        mode: measure
+        sql: "SELECT * FROM dm.mv_agent_weekly LIMIT 0"
+      - id: select-dm-mv_site_daily
+        mode: measure
+        sql: "SELECT * FROM dm.mv_site_daily LIMIT 0"
+      - id: select-dm-vw_org_hierarchy
+        mode: measure
+        sql: "SELECT * FROM dm.vw_org_hierarchy LIMIT 0"
+      - id: select-dm-vw_active_agents_ndv
+        mode: measure
+        sql: "SELECT * FROM dm.vw_active_agents_ndv LIMIT 0"
+      - id: select-dm-vw_csat_rollup
+        mode: measure
+        sql: "SELECT * FROM dm.vw_csat_rollup LIMIT 0"
+      - id: select-dm-vw_call_driver_regex
+        mode: measure
+        sql: "SELECT * FROM dm.vw_call_driver_regex LIMIT 0"
+      - id: select-dm-vw_repeat_contact_window
+        mode: measure
+        sql: "SELECT * FROM dm.vw_repeat_contact_window LIMIT 0"
+      - id: select-dm-vw_billing_reconciliation
+        mode: measure
+        sql: "SELECT * FROM dm.vw_billing_reconciliation LIMIT 0"
+      - id: select-dm-vw_agent_roster_current
+        mode: measure
+        sql: "SELECT * FROM dm.vw_agent_roster_current LIMIT 0"
+      - id: select-dm-vw_agent_scorecard
+        mode: measure
+        sql: "SELECT * FROM dm.vw_agent_scorecard LIMIT 0"
+      - id: select-dm-vw_attrition_risk
+        mode: measure
+        sql: "SELECT * FROM dm.vw_attrition_risk LIMIT 0"
+      - id: select-dm-vw_queue_sla_attainment
+        mode: measure
+        sql: "SELECT * FROM dm.vw_queue_sla_attainment LIMIT 0"
+      - id: select-dm-vw_first_contact_resolution
+        mode: measure
+        sql: "SELECT * FROM dm.vw_first_contact_resolution LIMIT 0"
+      - id: select-dm-vw_occupancy_utilization
+        mode: measure
+        sql: "SELECT * FROM dm.vw_occupancy_utilization LIMIT 0"
+      - id: select-dm-vw_shrinkage_analysis
+        mode: measure
+        sql: "SELECT * FROM dm.vw_shrinkage_analysis LIMIT 0"
+      - id: select-dm-vw_program_margin
+        mode: measure
+        sql: "SELECT * FROM dm.vw_program_margin LIMIT 0"
+      - id: select-dm-vw_client_executive_summary
+        mode: measure
+        sql: "SELECT * FROM dm.vw_client_executive_summary LIMIT 0"
+      - id: cross-tier-dm
+        mode: measure
+        sql: >
+          SELECT f.interaction_id, a.full_name, f.handle_seconds
+          FROM dm.fact_interaction f
+          JOIN dm.dim_agent a ON a.agent_sk = f.agent_sk
+          WHERE f.date_key = 20260601
+          LIMIT 1
+
+  # ======================================================================
+  # AC9 — Scan reduction: partition/cluster-filtered queries scan
+  # materially fewer bytes than unfiltered on 10 hot-path objects.
+  # Pattern: query_performance, mode: compare, dry_run: true
+  # dry_run bytes are deterministic and free (no execution cost).
+  # ======================================================================
+  - pattern: query_performance
+    id: scan-reduction-hotpath
+    story_id: NBCS-TARGET-SCHEMA-AC9
+    queries:
+      - id: scan-fact_interaction
+        mode: compare
+        a: { sql: "SELECT * FROM dm.fact_interaction WHERE date_key BETWEEN 20200101 AND 20261231", dry_run: true }
+        b: { sql: "SELECT * FROM dm.fact_interaction WHERE date_key = 20260601 AND agent_sk = 1", dry_run: true }
+        compare:
+          bytes_scanned: "b <= a"
+      - id: scan-fact_agent_activity
+        mode: compare
+        a: { sql: "SELECT * FROM dm.fact_agent_activity WHERE date_key BETWEEN 20200101 AND 20261231", dry_run: true }
+        b: { sql: "SELECT * FROM dm.fact_agent_activity WHERE date_key = 20260601 AND agent_sk = 1", dry_run: true }
+        compare:
+          bytes_scanned: "b <= a"
+      - id: scan-fact_queue_interval
+        mode: compare
+        a: { sql: "SELECT * FROM dm.fact_queue_interval WHERE date_key BETWEEN 20200101 AND 20261231", dry_run: true }
+        b: { sql: "SELECT * FROM dm.fact_queue_interval WHERE date_key = 20260601 AND queue_sk = 1", dry_run: true }
+        compare:
+          bytes_scanned: "b <= a"
+      - id: scan-fact_csat_survey
+        mode: compare
+        a: { sql: "SELECT * FROM dm.fact_csat_survey", dry_run: true }
+        b: { sql: "SELECT * FROM dm.fact_csat_survey WHERE date_key = 20260601 AND program_sk = 1", dry_run: true }
+        compare:
+          bytes_scanned: "b <= a"
+      - id: scan-fact_billing_line
+        mode: compare
+        a: { sql: "SELECT * FROM dm.fact_billing_line", dry_run: true }
+        b: { sql: "SELECT * FROM dm.fact_billing_line WHERE client_sk = 1", dry_run: true }
+        compare:
+          bytes_scanned: "b <= a"
+      - id: scan-fact_adherence_daily
+        mode: compare
+        a: { sql: "SELECT * FROM dm.fact_adherence_daily", dry_run: true }
+        b: { sql: "SELECT * FROM dm.fact_adherence_daily WHERE date_key = 20260601 AND agent_sk = 1", dry_run: true }
+        compare:
+          bytes_scanned: "b <= a"
+      - id: scan-fact_ticket
+        mode: compare
+        a: { sql: "SELECT * FROM dm.fact_ticket", dry_run: true }
+        b: { sql: "SELECT * FROM dm.fact_ticket WHERE date_key = 20260601 AND program_sk = 1", dry_run: true }
+        compare:
+          bytes_scanned: "b <= a"
+      - id: scan-agg_agent_daily
+        mode: compare
+        a: { sql: "SELECT * FROM dm.agg_agent_daily", dry_run: true }
+        b: { sql: "SELECT * FROM dm.agg_agent_daily WHERE date_key = 20260601 AND agent_sk = 1", dry_run: true }
+        compare:
+          bytes_scanned: "b <= a"
+      - id: scan-agg_queue_hourly
+        mode: compare
+        a: { sql: "SELECT * FROM dm.agg_queue_hourly", dry_run: true }
+        b: { sql: "SELECT * FROM dm.agg_queue_hourly WHERE date_key = 20260601 AND queue_sk = 1", dry_run: true }
+        compare:
+          bytes_scanned: "b <= a"
+      - id: scan-ods_interaction
+        mode: compare
+        a: { sql: "SELECT * FROM ods.ods_interaction", dry_run: true }
+        b: { sql: "SELECT * FROM ods.ods_interaction WHERE agent_id = 1", dry_run: true }
+        compare:
+          bytes_scanned: "b <= a"
+
+  # Verify require_partition_filter=true rejects unfiltered scans
+  # on the 3 large fact tables. An unfiltered query must ERROR.
+  - pattern: query_performance
+    id: partition-filter-enforcement
+    story_id: NBCS-TARGET-SCHEMA-AC9
+    queries:
+      - id: filter-required-fact_interaction
+        mode: measure
+        sql: "SELECT * FROM dm.fact_interaction WHERE date_key = 20260601 LIMIT 0"
+      - id: filter-required-fact_agent_activity
+        mode: measure
+        sql: "SELECT * FROM dm.fact_agent_activity WHERE date_key = 20260601 LIMIT 0"
+      - id: filter-required-fact_queue_interval
+        mode: measure
+        sql: "SELECT * FROM dm.fact_queue_interval WHERE date_key = 20260601 LIMIT 0"
+
