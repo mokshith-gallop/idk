@@ -1,15 +1,30 @@
 -- ----------------------------------------------------------------------------
--- 02-staging-sqoop-mirrors: staging: Sqoop-landed RDBMS mirrors (27)
--- Translated from: hive/ddl/02-staging-sqoop-mirrors.hql
--- Hive constructs dropped: EXTERNAL, STORED AS, LOCATION, TBLPROPERTIES,
---   CLUSTERED BY ... INTO N BUCKETS, ROW FORMAT.
--- Partition columns (load_date, site_code) appended at end of column list.
--- Type map: BIGINT→INT64, INT→INT64, STRING→STRING, BOOLEAN→BOOL,
---   DECIMAL(p,s)→NUMERIC(p,s). Partition load_date STRING→DATE.
--- All source COMMENTs carried as OPTIONS(description=...).
+-- 02-staging-sqoop-mirrors.sql  — staging: Sqoop-landed RDBMS mirrors (27)
+-- Migrated from: hive/ddl/02-staging-sqoop-mirrors.hql
+-- Source: NBCS CDH 6.3.4 legacy warehouse → BigQuery
+--
+-- Type mappings applied:
+--   BIGINT → INT64, INT → INT64, STRING → STRING, BOOLEAN → BOOL,
+--   DECIMAL(p,s) → NUMERIC(p,s), DOUBLE → FLOAT64
+--
+-- Hive constructs dropped:
+--   EXTERNAL, STORED AS PARQUET, LOCATION, TBLPROPERTIES,
+--   CLUSTERED BY ... INTO N BUCKETS, ROW FORMAT / SERDE
+--
+-- Partition convention:
+--   Hive STRING partition column `load_date` promoted to DATE and appended
+--   at the end of the column list. stg_wfm_schedule additionally has
+--   `site_code STRING` as a second former partition column.
+--   Sqoop mirrors are UNPARTITIONED in BigQuery (load_date is a regular
+--   column, not a BQ partition key).
+--
+-- Column descriptions:
+--   All source COMMENTs carried verbatim via OPTIONS(description=...).
 -- ----------------------------------------------------------------------------
 
--- ===== CRM on Oracle (crmdb01) — 6 tables =====
+-- ============================================================================
+-- CRM on Oracle (crmdb01) — 6 tables
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS staging.stg_crm_client (
   client_id                   INT64,
@@ -18,8 +33,9 @@ CREATE TABLE IF NOT EXISTS staging.stg_crm_client (
   industry                    STRING,
   hq_country                  STRING,
   status                      STRING,
-  created_ts                  INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  updated_ts                  INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  created_ts                  INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  updated_ts                  INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  -- partition column promoted from STRING to DATE, appended at end
   load_date                   DATE
 );
 
@@ -31,7 +47,7 @@ CREATE TABLE IF NOT EXISTS staging.stg_crm_client_contact (
   phone                       STRING,
   role                        STRING,
   is_primary                  BOOL,
-  created_ts                  INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  created_ts                  INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   load_date                   DATE
 );
 
@@ -44,8 +60,8 @@ CREATE TABLE IF NOT EXISTS staging.stg_crm_program (
   channel_mix                 STRING,
   site_code                   STRING,
   status                      STRING,
-  go_live_ts                  INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  updated_ts                  INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  go_live_ts                  INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  updated_ts                  INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   load_date                   DATE
 );
 
@@ -54,11 +70,11 @@ CREATE TABLE IF NOT EXISTS staging.stg_crm_contract (
   client_id                   INT64,
   program_id                  INT64,
   contract_no                 STRING,
-  start_dt                    STRING OPTIONS (description = 'Oracle string YYYYMMDDHH24MISS (legacy)'),
-  end_dt                      STRING OPTIONS (description = 'Oracle string YYYYMMDDHH24MISS (legacy)'),
+  start_dt                    STRING OPTIONS(description='Oracle string YYYYMMDDHH24MISS (legacy)'),
+  end_dt                      STRING OPTIONS(description='Oracle string YYYYMMDDHH24MISS (legacy)'),
   billing_model               STRING,
   currency                    STRING,
-  signed_dt                   STRING OPTIONS (description = 'Oracle string YYYYMMDDHH24MISS (legacy)'),
+  signed_dt                   STRING OPTIONS(description='Oracle string YYYYMMDDHH24MISS (legacy)'),
   status                      STRING,
   load_date                   DATE
 );
@@ -69,9 +85,9 @@ CREATE TABLE IF NOT EXISTS staging.stg_crm_contract_line (
   line_no                     INT64,
   service_code                STRING,
   uom                         STRING,
-  unit_rate                   NUMERIC(12, 4),
-  min_commit                  NUMERIC(12, 2),
-  effective_dt                STRING OPTIONS (description = 'Oracle string YYYYMMDDHH24MISS (legacy)'),
+  unit_rate                   NUMERIC(12,4),
+  min_commit                  NUMERIC(12,2),
+  effective_dt                STRING OPTIONS(description='Oracle string YYYYMMDDHH24MISS (legacy)'),
   load_date                   DATE
 );
 
@@ -80,13 +96,15 @@ CREATE TABLE IF NOT EXISTS staging.stg_crm_sla_target (
   program_id                  INT64,
   queue_id                    INT64,
   metric_code                 STRING,
-  target_value                NUMERIC(10, 4),
-  penalty_pct                 NUMERIC(5, 2),
-  effective_ts                INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  target_value                NUMERIC(10,4),
+  penalty_pct                 NUMERIC(5,2),
+  effective_ts                INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   load_date                   DATE
 );
 
--- ===== HR/HCM on SQL Server (hrms01) — 5 tables =====
+-- ============================================================================
+-- HR/HCM on SQL Server (hrms01) — 5 tables
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS staging.stg_hr_agent (
   agent_id                    INT64,
@@ -97,8 +115,8 @@ CREATE TABLE IF NOT EXISTS staging.stg_hr_agent (
   org_unit_id                 INT64,
   job_grade                   STRING,
   employment_type             STRING,
-  hire_ts                     INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  term_ts                     INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  hire_ts                     INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  term_ts                     INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   status                      STRING,
   load_date                   DATE
 );
@@ -111,7 +129,7 @@ CREATE TABLE IF NOT EXISTS staging.stg_hr_org_unit (
   unit_type                   STRING,
   site_code                   STRING,
   cost_center                 STRING,
-  created_ts                  INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  created_ts                  INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   load_date                   DATE
 );
 
@@ -119,7 +137,7 @@ CREATE TABLE IF NOT EXISTS staging.stg_hr_employment_event (
   event_id                    INT64,
   agent_id                    INT64,
   event_type                  STRING,
-  event_ts                    INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  event_ts                    INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   from_org_unit_id            INT64,
   to_org_unit_id              INT64,
   reason_code                 STRING,
@@ -131,7 +149,7 @@ CREATE TABLE IF NOT EXISTS staging.stg_hr_skill (
   skill_code                  STRING,
   skill_name                  STRING,
   skill_family                STRING,
-  created_ts                  INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  created_ts                  INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   load_date                   DATE
 );
 
@@ -141,12 +159,14 @@ CREATE TABLE IF NOT EXISTS staging.stg_hr_agent_skill (
   skill_id                    INT64,
   proficiency                 INT64,
   certified                   BOOL,
-  effective_ts                INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  expiry_ts                   INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  effective_ts                INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  expiry_ts                   INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   load_date                   DATE
 );
 
--- ===== WFM on MySQL (wfm01) — 5 tables =====
+-- ============================================================================
+-- WFM on MySQL (wfm01) — 5 tables
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS staging.stg_wfm_shift (
   shift_id                    INT64,
@@ -156,17 +176,20 @@ CREATE TABLE IF NOT EXISTS staging.stg_wfm_shift (
   end_hhmm                    STRING,
   overnight_flag              BOOL,
   site_code                   STRING,
-  created_epoch               INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  created_epoch               INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   load_date                   DATE
 );
 
+-- stg_wfm_schedule: multi-column Hive partition (load_date STRING, site_code STRING).
+-- Both former partition columns appended at end; load_date promoted to DATE,
+-- site_code stays STRING.
 CREATE TABLE IF NOT EXISTS staging.stg_wfm_schedule (
   schedule_id                 INT64,
   agent_id                    INT64,
   shift_id                    INT64,
   sched_date                  STRING,
-  start_epoch                 INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  end_epoch                   INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  start_epoch                 INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  end_epoch                   INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   paid_minutes                INT64,
   activity_code               STRING,
   load_date                   DATE,
@@ -178,8 +201,8 @@ CREATE TABLE IF NOT EXISTS staging.stg_wfm_adherence_event (
   agent_id                    INT64,
   schedule_id                 INT64,
   exception_type              STRING,
-  start_epoch                 INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  end_epoch                   INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  start_epoch                 INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  end_epoch                   INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   approved_flag               BOOL,
   load_date                   DATE
 );
@@ -187,17 +210,17 @@ CREATE TABLE IF NOT EXISTS staging.stg_wfm_adherence_event (
 CREATE TABLE IF NOT EXISTS staging.stg_wfm_forecast (
   forecast_id                 INT64,
   queue_id                    INT64,
-  interval_start_epoch        INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  interval_start_epoch        INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   forecast_volume             INT64,
   forecast_aht_sec            INT64,
-  required_fte                NUMERIC(8, 2),
+  required_fte                NUMERIC(8,2),
   load_date                   DATE
 );
 
 CREATE TABLE IF NOT EXISTS staging.stg_wfm_timeoff_request (
   timeoff_id                  INT64,
   agent_id                    INT64,
-  request_epoch               INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  request_epoch               INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   start_date                  STRING,
   end_date                    STRING,
   timeoff_type                STRING,
@@ -205,8 +228,12 @@ CREATE TABLE IF NOT EXISTS staging.stg_wfm_timeoff_request (
   load_date                   DATE
 );
 
--- ===== Telephony switch on Oracle (switchdb01) — 5 tables =====
+-- ============================================================================
+-- Telephony switch on Oracle (switchdb01) — 5 tables
+-- ============================================================================
 
+-- stg_tel_call: source CLUSTERED BY (call_id) INTO 16 BUCKETS dropped
+-- (no BQ partition or clustering for this staging mirror).
 CREATE TABLE IF NOT EXISTS staging.stg_tel_call (
   call_id                     INT64,
   ani                         STRING,
@@ -214,9 +241,9 @@ CREATE TABLE IF NOT EXISTS staging.stg_tel_call (
   queue_id                    INT64,
   agent_id                    INT64,
   program_id                  INT64,
-  start_epoch                 INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  answer_epoch                INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  end_epoch                   INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  start_epoch                 INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  answer_epoch                INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  end_epoch                   INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   disposition_code            STRING,
   direction                   STRING,
   recording_id                STRING,
@@ -228,8 +255,8 @@ CREATE TABLE IF NOT EXISTS staging.stg_tel_call_segment (
   call_id                     INT64,
   segment_no                  INT64,
   segment_type                STRING,
-  start_epoch                 INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  end_epoch                   INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  start_epoch                 INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  end_epoch                   INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   agent_id                    INT64,
   load_date                   DATE
 );
@@ -241,7 +268,7 @@ CREATE TABLE IF NOT EXISTS staging.stg_tel_queue (
   program_id                  INT64,
   media_type                  STRING,
   priority                    INT64,
-  created_epoch               INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  created_epoch               INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   load_date                   DATE
 );
 
@@ -249,8 +276,8 @@ CREATE TABLE IF NOT EXISTS staging.stg_tel_agent_state_event (
   state_event_id              INT64,
   agent_id                    INT64,
   state_code                  STRING,
-  start_epoch                 INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  end_epoch                   INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  start_epoch                 INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  end_epoch                   INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   reason_code                 STRING,
   load_date                   DATE
 );
@@ -260,11 +287,13 @@ CREATE TABLE IF NOT EXISTS staging.stg_tel_disposition_code (
   disposition_desc            STRING,
   category                    STRING,
   billable_flag               BOOL,
-  created_epoch               INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  created_epoch               INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   load_date                   DATE
 );
 
--- ===== Ticketing on Postgres (tixdb01) — 3 tables =====
+-- ============================================================================
+-- Ticketing on Postgres (tixdb01) — 3 tables
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS staging.stg_tkt_ticket (
   ticket_id                   INT64,
@@ -276,8 +305,8 @@ CREATE TABLE IF NOT EXISTS staging.stg_tkt_ticket (
   interaction_ref             STRING,
   priority                    STRING,
   status                      STRING,
-  created_ms                  INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
-  updated_ms                  INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  created_ms                  INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
+  updated_ms                  INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   load_date                   DATE
 );
 
@@ -285,7 +314,7 @@ CREATE TABLE IF NOT EXISTS staging.stg_tkt_ticket_event (
   ticket_event_id             INT64,
   ticket_id                   INT64,
   event_type                  STRING,
-  event_ms                    INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  event_ms                    INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   actor_agent_id              INT64,
   old_value                   STRING,
   new_value                   STRING,
@@ -297,11 +326,13 @@ CREATE TABLE IF NOT EXISTS staging.stg_tkt_category (
   category_code               STRING,
   category_name               STRING,
   sla_hours                   INT64,
-  created_ms                  INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  created_ms                  INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   load_date                   DATE
 );
 
--- ===== Finance/billing on SQL Server (findb01) — 3 tables =====
+-- ============================================================================
+-- Finance/billing on SQL Server (findb01) — 3 tables
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS staging.stg_fin_invoice (
   invoice_id                  INT64,
@@ -309,10 +340,10 @@ CREATE TABLE IF NOT EXISTS staging.stg_fin_invoice (
   client_id                   INT64,
   program_id                  INT64,
   period_month                STRING,
-  issued_ts_sec               INT64 OPTIONS (description = '!! name says seconds, VALUES ARE MILLIS !!'),
-  due_ts_sec                  INT64 OPTIONS (description = '!! name says seconds, VALUES ARE MILLIS !!'),
+  issued_ts_sec               INT64 OPTIONS(description='!! name says seconds, VALUES ARE MILLIS !!'),
+  due_ts_sec                  INT64 OPTIONS(description='!! name says seconds, VALUES ARE MILLIS !!'),
   currency                    STRING,
-  total_amount                NUMERIC(14, 2),
+  total_amount                NUMERIC(14,2),
   status                      STRING,
   load_date                   DATE
 );
@@ -321,11 +352,11 @@ CREATE TABLE IF NOT EXISTS staging.stg_fin_invoice_line (
   invoice_line_id             INT64,
   invoice_id                  INT64,
   contract_line_id            INT64,
-  qty                         NUMERIC(12, 2),
-  unit_rate                   NUMERIC(12, 4),
-  line_amount                 NUMERIC(14, 2),
+  qty                         NUMERIC(12,2),
+  unit_rate                   NUMERIC(12,4),
+  line_amount                 NUMERIC(14,2),
   adjustment_flag             BOOL,
-  created_ms                  INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  created_ms                  INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   load_date                   DATE
 );
 
@@ -333,9 +364,9 @@ CREATE TABLE IF NOT EXISTS staging.stg_fin_rate_card (
   rate_card_id                INT64,
   program_id                  INT64,
   service_code                STRING,
-  rate                        NUMERIC(12, 4),
+  rate                        NUMERIC(12,4),
   currency                    STRING,
-  effective_ts                INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  expiry_ts                   INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  effective_ts                INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  expiry_ts                   INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   load_date                   DATE
 );

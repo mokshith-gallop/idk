@@ -1,10 +1,23 @@
 -- ----------------------------------------------------------------------------
--- 03-staging-delta-feeds: staging: CDC delta feeds, pipe-delimited (8)
--- Translated from: hive/ddl/03-staging-delta-feeds.hql
--- Hive constructs dropped: EXTERNAL, ROW FORMAT DELIMITED, STORED AS TEXTFILE,
---   LOCATION. Partition extract_ts STRING kept as STRING (not date-like).
--- Type map: BIGINT→INT64, INT→INT64, BOOLEAN→BOOL, DECIMAL(p,s)→NUMERIC(p,s).
--- All source COMMENTs carried as OPTIONS(description=...).
+-- 03-staging-delta-feeds.sql  — staging: CDC delta feeds (8)
+-- Migrated from: hive/ddl/03-staging-delta-feeds.hql
+-- Source: NBCS CDH 6.3.4 legacy warehouse → BigQuery
+--
+-- Type mappings applied:
+--   BIGINT → INT64, INT → INT64, STRING → STRING, BOOLEAN → BOOL,
+--   DECIMAL(p,s) → NUMERIC(p,s)
+--
+-- Hive constructs dropped:
+--   EXTERNAL, ROW FORMAT DELIMITED FIELDS TERMINATED BY '|',
+--   LINES TERMINATED BY '\n', STORED AS TEXTFILE, LOCATION
+--
+-- Partition convention:
+--   Hive STRING partition column `extract_ts` stays STRING (not promoted to
+--   DATE — it is a timestamp string, not date-like) and is appended at the
+--   end of the column list. Delta tables are UNPARTITIONED in BigQuery.
+--
+-- Column descriptions:
+--   All source COMMENTs carried verbatim via OPTIONS(description=...).
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS staging.stg_fin_timesheet_delta (
@@ -16,7 +29,8 @@ CREATE TABLE IF NOT EXISTS staging.stg_fin_timesheet_delta (
   nonbillable_minutes         INT64,
   approved_flag               BOOL,
   op                          STRING,
-  change_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  change_ms                   INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
+  -- former partition column, appended at end (not promoted — timestamp string)
   extract_ts                  STRING
 );
 
@@ -25,9 +39,9 @@ CREATE TABLE IF NOT EXISTS staging.stg_fin_payroll_adj_delta (
   agent_id                    INT64,
   period_month                STRING,
   adj_type                    STRING,
-  amount                      NUMERIC(12, 2),
+  amount                      NUMERIC(12,2),
   op                          STRING,
-  change_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  change_ms                   INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   extract_ts                  STRING
 );
 
@@ -36,10 +50,10 @@ CREATE TABLE IF NOT EXISTS staging.stg_crm_sla_credit_delta (
   program_id                  INT64,
   sla_target_id               INT64,
   period_month                STRING,
-  credit_amount               NUMERIC(12, 2),
+  credit_amount               NUMERIC(12,2),
   reason                      STRING,
   op                          STRING,
-  change_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  change_ms                   INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   extract_ts                  STRING
 );
 
@@ -47,11 +61,11 @@ CREATE TABLE IF NOT EXISTS staging.stg_tel_callback_request_delta (
   callback_id                 INT64,
   call_id                     INT64,
   queue_id                    INT64,
-  requested_epoch             INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
-  scheduled_epoch             INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  requested_epoch             INT64 OPTIONS(description='epoch SECONDS (legacy)'),
+  scheduled_epoch             INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   completed_flag              BOOL,
   op                          STRING,
-  change_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  change_ms                   INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   extract_ts                  STRING
 );
 
@@ -63,7 +77,7 @@ CREATE TABLE IF NOT EXISTS staging.stg_wfm_shift_swap_delta (
   swap_date                   STRING,
   status                      STRING,
   op                          STRING,
-  change_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  change_ms                   INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   extract_ts                  STRING
 );
 
@@ -72,33 +86,33 @@ CREATE TABLE IF NOT EXISTS staging.stg_tkt_worklog_delta (
   ticket_id                   INT64,
   agent_id                    INT64,
   minutes_logged              INT64,
-  log_ms                      INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  log_ms                      INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   note                        STRING,
   op                          STRING,
-  change_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  change_ms                   INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   extract_ts                  STRING
 );
 
 CREATE TABLE IF NOT EXISTS staging.stg_hr_attrition_event_delta (
   attrition_event_id          INT64,
   agent_id                    INT64,
-  notice_epoch                INT64 OPTIONS (description = 'epoch SECONDS (legacy)'),
+  notice_epoch                INT64 OPTIONS(description='epoch SECONDS (legacy)'),
   last_day                    STRING,
   attrition_type              STRING,
   reason_code                 STRING,
   regrettable_flag            BOOL,
   op                          STRING,
-  change_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  change_ms                   INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   extract_ts                  STRING
 );
 
 CREATE TABLE IF NOT EXISTS staging.stg_fin_rate_card_change_delta (
   rate_change_id              INT64,
   rate_card_id                INT64,
-  old_rate                    NUMERIC(12, 4),
-  new_rate                    NUMERIC(12, 4),
+  old_rate                    NUMERIC(12,4),
+  new_rate                    NUMERIC(12,4),
   change_reason               STRING,
   op                          STRING,
-  change_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
+  change_ms                   INT64 OPTIONS(description='epoch MILLISECONDS (legacy)'),
   extract_ts                  STRING
 );
