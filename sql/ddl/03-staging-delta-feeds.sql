@@ -1,11 +1,9 @@
 -- ----------------------------------------------------------------------------
 -- 03-staging-delta-feeds: staging: CDC delta feeds, pipe-delimited (8)
--- Migrated from Hive EXTERNAL TEXTFILE tables to native BigQuery tables.
--- Dropped: EXTERNAL, ROW FORMAT, STORED AS, LOCATION.
--- Type map: BIGINT→INT64, INT→INT64, STRING→STRING, BOOLEAN→BOOL,
---           DECIMAL(p,s)→NUMERIC(p,s).
--- Partition column extract_ts (STRING) appended at end as regular STRING
--- column (not promoted — it is a timestamp string, not date-like).
+-- Translated from: hive/ddl/03-staging-delta-feeds.hql
+-- Hive constructs dropped: EXTERNAL, ROW FORMAT DELIMITED, STORED AS TEXTFILE,
+--   LOCATION. Partition extract_ts STRING kept as STRING (not date-like).
+-- Type map: BIGINT→INT64, INT→INT64, BOOLEAN→BOOL, DECIMAL(p,s)→NUMERIC(p,s).
 -- All source COMMENTs carried as OPTIONS(description=...).
 -- ----------------------------------------------------------------------------
 
@@ -27,7 +25,7 @@ CREATE TABLE IF NOT EXISTS staging.stg_fin_payroll_adj_delta (
   agent_id                    INT64,
   period_month                STRING,
   adj_type                    STRING,
-  amount                      NUMERIC(12,2),
+  amount                      NUMERIC(12, 2),
   op                          STRING,
   change_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
   extract_ts                  STRING
@@ -38,7 +36,7 @@ CREATE TABLE IF NOT EXISTS staging.stg_crm_sla_credit_delta (
   program_id                  INT64,
   sla_target_id               INT64,
   period_month                STRING,
-  credit_amount               NUMERIC(12,2),
+  credit_amount               NUMERIC(12, 2),
   reason                      STRING,
   op                          STRING,
   change_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
@@ -97,8 +95,8 @@ CREATE TABLE IF NOT EXISTS staging.stg_hr_attrition_event_delta (
 CREATE TABLE IF NOT EXISTS staging.stg_fin_rate_card_change_delta (
   rate_change_id              INT64,
   rate_card_id                INT64,
-  old_rate                    NUMERIC(12,4),
-  new_rate                    NUMERIC(12,4),
+  old_rate                    NUMERIC(12, 4),
+  new_rate                    NUMERIC(12, 4),
   change_reason               STRING,
   op                          STRING,
   change_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),

@@ -1,16 +1,15 @@
 -- ----------------------------------------------------------------------------
 -- 04-staging-file-feeds: staging: SFTP/file-landed client feeds (10)
--- Migrated from Hive EXTERNAL tables (TEXTFILE/JSON/REGEX/SEQUENCEFILE/RCFILE)
--- to native BigQuery tables.
--- Dropped: EXTERNAL, ROW FORMAT, SERDE, WITH SERDEPROPERTIES, STORED AS,
---          LOCATION, TBLPROPERTIES (skip.header.line.count, ignore.malformed.json).
+-- Translated from: hive/ddl/04-staging-file-feeds.hql
+-- Hive constructs dropped: EXTERNAL, ROW FORMAT, SERDE, WITH SERDEPROPERTIES,
+--   STORED AS, LOCATION, TBLPROPERTIES.
+-- Multi-column Hive partition (client_code STRING, feed_date STRING) →
+--   BQ: PARTITION BY feed_date (DATE), CLUSTER BY client_code.
+-- All 10 file-feed tables get OPTIONS(partition_expiration_days=365).
+-- Complex types: ARRAY<STRUCT<...>>, MAP<STRING,STRING>→JSON,
+--   ARRAY<STRING>→REPEATED STRING.
 -- Type map: BIGINT→INT64, INT→INT64, STRING→STRING, BOOLEAN→BOOL,
---           DOUBLE→FLOAT64, DECIMAL(p,s)→NUMERIC(p,s).
--- Complex types: ARRAY<STRUCT<...>>→ARRAY<STRUCT<...>> (sub-field INT→INT64),
---                MAP<STRING,STRING>→JSON, ARRAY<STRING>→ARRAY<STRING>.
--- Partition: feed_date promoted from STRING to DATE; BQ PARTITION BY feed_date.
---            client_code STRING becomes CLUSTER BY column.
--- All 10 tables have partition_expiration_days=365.
+--   DOUBLE→FLOAT64, DECIMAL(p,s)→NUMERIC(p,s).
 -- All source COMMENTs carried as OPTIONS(description=...).
 -- ----------------------------------------------------------------------------
 
@@ -57,7 +56,7 @@ CREATE TABLE IF NOT EXISTS staging.stg_file_qa_forms (
   form_version                STRING,
   sections                    ARRAY<STRUCT<section_code STRING, max_points INT64, scored_points INT64>>,
   auto_fail                   BOOL,
-  overall_pct                 NUMERIC(5,2),
+  overall_pct                 NUMERIC(5, 2),
   client_code                 STRING,
   feed_date                   DATE
 )
@@ -120,7 +119,7 @@ CREATE TABLE IF NOT EXISTS staging.stg_file_telco_invoice (
   carrier                     STRING,
   circuit_id                  STRING,
   usage_minutes               INT64,
-  charge_amount               NUMERIC(12,2),
+  charge_amount               NUMERIC(12, 2),
   bill_period                 STRING,
   billed_ms                   INT64 OPTIONS (description = 'epoch MILLISECONDS (legacy)'),
   client_code                 STRING,
