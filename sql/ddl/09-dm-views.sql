@@ -1,26 +1,26 @@
 -- ----------------------------------------------------------------------------
--- 09-dm-views: dm: 15 analyst-facing views (BigQuery dialect)
--- Translated from Hive/Impala SQL to BigQuery Standard SQL.
+-- 09-dm-views: dm: 15 analyst-facing views (BigQuery Standard SQL)
+-- Translated from: hive/ddl/09-dm-views.hql (Hive/Impala SQL)
 --
 -- Dialect translations applied:
 --   NDV()                    → APPROX_COUNT_DISTINCT()
 --   GROUP BY ... WITH ROLLUP → GROUP BY ROLLUP(...)
 --   GROUPING__ID             → GROUPING(col1) * 2 + GROUPING(col2) (bit-order)
 --   RLIKE                    → REGEXP_CONTAINS()
---   regexp_extract(s,p,1)    → REGEXP_EXTRACT(s,p)
+--   regexp_extract(s, p, 1)  → REGEXP_EXTRACT(s, p)
 --   unix_timestamp(ts)       → UNIX_SECONDS(ts)
 --   from_unixtime(x)         → TIMESTAMP_SECONDS(x)
 --   date_add(ts, 7)          → TIMESTAMP_ADD(ts, INTERVAL 7 DAY)
---   from_unixtime(unix_timestamp(...,'yyyyMMdd'),'yyyy-MM-dd')
---                            → FORMAT_DATE('%Y-%m-%d', PARSE_DATE('%Y%m%d', ...))
+--   from_unixtime(unix_timestamp(CAST(...),'yyyyMMdd'),'yyyy-MM-dd')
+--                            → PARSE_DATE('%Y%m%d', CAST(... AS STRING))
 --
--- Layer-skip references (staging tables read from dm views) use fully
--- qualified dataset references. vw_attrition_risk references mv_agent_weekly
--- (replacing the agg_agent_weekly table per locked Performance Optimization).
+-- Layer-skip references (staging/ods tables read from dm views) use fully
+-- qualified dataset names. vw_attrition_risk references dm.mv_agent_weekly
+-- (MV replacing agg_agent_weekly per locked Performance Optimization).
 -- ----------------------------------------------------------------------------
 
 -- 1. Org hierarchy (recursive CTE over self-referencing ods_org_unit)
--- BQ supports WITH RECURSIVE natively — no change needed.
+-- BQ supports WITH RECURSIVE natively. Column-list syntax removed (BQ-incompatible).
 CREATE OR REPLACE VIEW dm.vw_org_hierarchy AS
 WITH RECURSIVE org_tree AS (
   SELECT o.org_unit_id, o.unit_code, o.unit_name, o.unit_type,
@@ -41,6 +41,7 @@ SELECT org_unit_id, unit_code, unit_name, unit_type, site_code,
 FROM   org_tree;
 
 -- 2. Active-agent panel (NDV → APPROX_COUNT_DISTINCT)
+-- APPROX_COUNT_DISTINCT preserves the approximate semantics of Impala NDV().
 CREATE OR REPLACE VIEW dm.vw_active_agents_ndv AS
 SELECT f.date_key,
        a.site_code,
@@ -55,7 +56,8 @@ GROUP  BY f.date_key, a.site_code;
 -- Hive GROUPING__ID bit order: leftmost group col = highest bit.
 -- BQ GROUPING() returns 1 when the column IS rolled up (aggregated).
 -- Hive GROUPING__ID for (client_id, program_code):
---   0 = both present, 1 = program_code rolled up, 2 = client_id rolled up, 3 = both rolled up
+--   0 = both present, 1 = program_code rolled up,
+--   2 = client_id rolled up, 3 = both rolled up.
 -- BQ equivalent: GROUPING(client_id) * 2 + GROUPING(program_code)
 CREATE OR REPLACE VIEW dm.vw_csat_rollup AS
 SELECT p.client_id,
@@ -70,6 +72,7 @@ GROUP  BY ROLLUP(p.client_id, p.program_code);
 
 -- 4. Call-driver classification (RLIKE → REGEXP_CONTAINS; regexp_extract → REGEXP_EXTRACT)
 -- BQ REGEXP_EXTRACT returns the first capture group by default (no group index param).
+-- Hive condition `<> ''` changed to `IS NOT NULL` (BQ returns NULL on no match).
 CREATE OR REPLACE VIEW dm.vw_call_driver_regex AS
 SELECT c.call_date,
        c.queue_id,
@@ -111,8 +114,10 @@ SELECT i.interaction_id,
 FROM   ods.ods_interaction i
 WHERE  i.customer_ref IS NOT NULL AND i.customer_ref <> '';
 
--- 6. Billing reconciliation (from_unixtime → TIMESTAMP_SECONDS; unix_timestamp → UNIX_SECONDS)
--- Layer-skip: reads staging.stg_fin_invoice (fully qualified).
+-- 6. Billing reconciliation (layer-skip: reads staging.stg_fin_invoice)
+-- from_unixtime(CAST(x/1000 AS BIGINT)) → TIMESTAMP_SECONDS(CAST(x/1000 AS INT64))
+-- unix_timestamp(ts) → UNIX_SECONDS(ts)
+-- The issued_ts_sec column LIES — name says seconds, values are millis (÷1000).
 CREATE OR REPLACE VIEW dm.vw_billing_reconciliation AS
 SELECT s.invoice_no,
        s.total_amount                                    AS staged_amount,
@@ -127,7 +132,7 @@ FROM   staging.stg_fin_invoice s
 JOIN   ods.ods_invoice_acid a ON a.invoice_id = s.invoice_id;
 
 -- 7. Current agent roster (SCD-2 latest slice via ROW_NUMBER)
--- BQ supports ROW_NUMBER, subquery aliases, etc. natively.
+-- BQ supports ROW_NUMBER, subquery aliases, h.* natively.
 CREATE OR REPLACE VIEW dm.vw_agent_roster_current AS
 SELECT latest.agent_id, latest.employee_no, latest.org_unit_id, latest.job_grade,
        latest.employment_type, latest.status, latest.eff_from_ts,
@@ -144,7 +149,7 @@ LEFT   JOIN ods.ods_agent_assignment_scd2 asg
 WHERE  latest.rn = 1;
 
 -- 8. Agent scorecard (composite ranking: PERCENT_RANK + NTILE)
--- BQ supports all these window functions natively.
+-- BQ supports PERCENT_RANK, NTILE, multi-CTE natively.
 CREATE OR REPLACE VIEW dm.vw_agent_scorecard AS
 WITH perf AS (
   SELECT d.agent_sk,
@@ -226,7 +231,7 @@ LEFT   JOIN staging.stg_crm_sla_target t
        ON t.queue_id = q.queue_id AND t.metric_code = 'SL_20_80'
 GROUP  BY q.queue_code, q.media_type, f.date_key;
 
--- 11. First-contact resolution (date_add(ts,7) → TIMESTAMP_ADD(ts, INTERVAL 7 DAY))
+-- 11. First-contact resolution (date_add(ts, 7) → TIMESTAMP_ADD(ts, INTERVAL 7 DAY))
 CREATE OR REPLACE VIEW dm.vw_first_contact_resolution AS
 SELECT f.date_key,
        f.program_sk,
@@ -258,8 +263,9 @@ JOIN   dm.dim_agent a ON a.agent_sk = f.agent_sk
 GROUP  BY f.date_key, a.site_code, f.agent_sk;
 
 -- 13. Shrinkage analysis (scheduled vs productive time)
--- from_unixtime(unix_timestamp(CAST(...),'yyyyMMdd'),'yyyy-MM-dd')
---   → FORMAT_DATE('%Y-%m-%d', PARSE_DATE('%Y%m%d', CAST(f.date_key AS STRING)))
+-- Hive: from_unixtime(unix_timestamp(CAST(f.date_key AS STRING),'yyyyMMdd'),'yyyy-MM-dd')
+--   → BQ: PARSE_DATE('%Y%m%d', CAST(f.date_key AS STRING))
+-- ods_schedule.sched_date is DATE in BQ, so PARSE_DATE comparison is type-safe.
 CREATE OR REPLACE VIEW dm.vw_shrinkage_analysis AS
 SELECT f.date_key,
        a.site_code,
@@ -279,7 +285,7 @@ LEFT   JOIN dm.dim_shift sh ON sh.shift_id = s.shift_id AND sh.overnight_flag = 
 GROUP  BY f.date_key, a.site_code;
 
 -- 14. Program margin (revenue minus labor cost proxy)
--- No dialect change needed beyond standard SQL compatibility.
+-- Standard SQL — no dialect changes needed.
 CREATE OR REPLACE VIEW dm.vw_program_margin AS
 SELECT b.period_month,
        b.client_sk,
@@ -305,7 +311,7 @@ LEFT   JOIN (
   FROM   ods.ods_contract_line cl GROUP BY cl.contract_id
 ) cmt ON 1 = 1;
 
--- 15. Client executive summary (the HUB view)
+-- 15. Client executive summary (the HUB view — wide multi-fact join)
 CREATE OR REPLACE VIEW dm.vw_client_executive_summary AS
 SELECT c.client_code,
        c.client_name,
