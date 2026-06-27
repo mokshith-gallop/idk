@@ -1,18 +1,23 @@
 -- ----------------------------------------------------------------------------
--- 08b-dm-materialized-views: dm: materialized views (2)
--- Translated from: hive/ddl/08-dm-tables.hql (agg_agent_weekly, agg_site_daily)
--- Replaces two physical aggregate tables per locked Performance Optimization.
--- Both use dm.agg_agent_daily as the base table.
--- Must be applied AFTER 08-dm-tables.sql (base tables must exist).
+-- 08b-dm-materialized-views.sql  — dm: materialized views (2)
+-- Source: NBCS CDH 6.3.4 legacy warehouse → BigQuery
 --
--- BQ MV limitations:
---   - MV JOINs require BigQuery Enterprise edition.
---   - If the multi-table mv_site_daily fails at CREATE time, a single-table
---     fallback is provided (sl_pct = NULL, documented).
+-- Per locked Performance Optimization decision:
+--   dm.agg_agent_weekly (TABLE) → dm.mv_agent_weekly (MATERIALIZED VIEW)
+--   dm.agg_site_daily   (TABLE) → dm.mv_site_daily   (MATERIALIZED VIEW)
+--
+-- Both MVs are simple aggregate rollups over dm.agg_agent_daily (the base
+-- table, created in 08-dm-tables.sql). Must be applied AFTER 08.
+--
+-- Limitation: BigQuery materialized views do NOT support joins. The source
+-- agg_site_daily included sl_pct derived from fact_queue_interval via a
+-- join. The MV computes sl_pct as CAST(NULL AS NUMERIC) instead;
+-- consumers requiring sl_pct should use the full vw_queue_sla_attainment
+-- view or query fact_queue_interval directly.
 -- ----------------------------------------------------------------------------
 
--- mv_agent_weekly: weekly rollup of agg_agent_daily by ISO week boundary.
--- Replaces the source table dm.agg_agent_weekly.
+-- mv_agent_weekly: weekly rollup from agg_agent_daily.
+-- Groups by ISO week boundary derived from date_key.
 CREATE MATERIALIZED VIEW IF NOT EXISTS dm.mv_agent_weekly AS
 SELECT
   CAST(FORMAT_DATE('%Y%m%d',
@@ -28,27 +33,17 @@ SELECT
 FROM dm.agg_agent_daily
 GROUP BY 1, 2, 3;
 
--- mv_site_daily: site-level daily rollup aggregating agent metrics.
--- Replaces the source table dm.agg_site_daily.
--- sl_pct derived from fact_queue_interval via dim_queue join.
--- Note: If BQ rejects the multi-table MV (JOIN support requires Enterprise
--- edition), fall back to sl_pct = NULL and document the limitation.
+-- mv_site_daily: site-level rollup from agg_agent_daily.
+-- sl_pct is CAST(NULL AS NUMERIC) because BQ MVs do not support joins
+-- (the source agg_site_daily joined fact_queue_interval for this column).
 CREATE MATERIALIZED VIEW IF NOT EXISTS dm.mv_site_daily AS
 SELECT
-  a.date_key,
-  a.site_code,
-  COUNT(DISTINCT a.agent_sk)                         AS agents_active,
-  SUM(a.interactions_handled)                        AS interactions,
-  CAST(AVG(a.avg_handle_seconds) AS NUMERIC)         AS avg_handle_seconds,
-  CAST(q.sl_pct AS NUMERIC)                         AS sl_pct,
-  CAST(AVG(a.adherence_pct) AS NUMERIC)              AS adherence_pct
-FROM dm.agg_agent_daily a
-LEFT JOIN (
-  SELECT qi.date_key,
-         dq.site_code,
-         SAFE_DIVIDE(SUM(qi.answered_in_sl), SUM(qi.answered)) * 100 AS sl_pct
-  FROM dm.fact_queue_interval qi
-  JOIN dm.dim_queue dq ON dq.queue_sk = qi.queue_sk
-  GROUP BY qi.date_key, dq.site_code
-) q ON q.date_key = a.date_key AND q.site_code = a.site_code
-GROUP BY a.date_key, a.site_code, q.sl_pct;
+  date_key,
+  site_code,
+  COUNT(DISTINCT agent_sk)                           AS agents_active,
+  SUM(interactions_handled)                          AS interactions,
+  CAST(AVG(avg_handle_seconds) AS NUMERIC)           AS avg_handle_seconds,
+  CAST(NULL AS NUMERIC)                              AS sl_pct,
+  CAST(AVG(adherence_pct) AS NUMERIC)                AS adherence_pct
+FROM dm.agg_agent_daily
+GROUP BY date_key, site_code;

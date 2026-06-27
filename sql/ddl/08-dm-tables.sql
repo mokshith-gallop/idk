@@ -1,26 +1,46 @@
 -- ----------------------------------------------------------------------------
--- 08-dm-tables: dm: dimensions (9), facts (9), physical aggregates (5)
--- = 23 tables total.
--- Translated from: hive/ddl/08-dm-tables.hql
--- Hive constructs dropped: STORED AS PARQUET, TBLPROPERTIES,
---   CLUSTERED BY ... INTO N BUCKETS.
--- Type map: BIGINT→INT64, INT→INT64, STRING→STRING, BOOLEAN→BOOL,
---   TIMESTAMP→TIMESTAMP, DECIMAL(p,s)→NUMERIC(p,s).
+-- 08-dm-tables.sql  — dm: dimensions (9), facts (9), aggregates (5)
+-- Migrated from: hive/ddl/08-dm-tables.hql
+-- Source: NBCS CDH 6.3.4 legacy warehouse → BigQuery
+--
+-- NOTE: The source has 7 aggregates; 2 (agg_agent_weekly, agg_site_daily)
+-- are replaced by materialized views in 08b-dm-materialized-views.sql per
+-- the locked Performance Optimization decision. This file contains only 5
+-- physical aggregate tables. Total: 9 + 9 + 5 = 23 tables.
+--
+-- Type mappings applied:
+--   BIGINT → INT64, INT → INT64, STRING → STRING, BOOLEAN → BOOL,
+--   TIMESTAMP → TIMESTAMP, DECIMAL(p,s) → NUMERIC(p,s)
+--
+-- Hive constructs dropped:
+--   STORED AS PARQUET, TBLPROPERTIES ('parquet.compression'='SNAPPY'),
+--   CLUSTERED BY ... INTO N BUCKETS
 --
 -- Partition strategy:
---   date_key INT facts/aggs → RANGE_BUCKET integer-range partition.
---   period_month STRING     → promoted to DATE, DATE_TRUNC monthly partition.
---   fact_interaction: multi-col Hive partition (date_key, channel) →
---     BQ partition on date_key only; channel demoted to cluster column.
+--   date_key INT facts/aggs: RANGE_BUCKET(date_key, GENERATE_ARRAY(...))
+--   period_month STRING: promoted to DATE, PARTITION BY DATE_TRUNC(period_month, MONTH)
+--   fact_interaction: multi-col Hive partition (date_key INT, channel STRING)
+--     → BQ partitioned on date_key only, channel demoted to CLUSTER BY
+--   Dims: unpartitioned (small reference tables)
 --
--- Clustering per locked Performance Optimization matrix (9 tables).
--- require_partition_filter=true on 3 large fact tables.
+-- Clustering (per locked Performance Optimization):
+--   fact_interaction:   agent_sk, channel, client_sk, customer_ref
+--   fact_agent_activity: agent_sk, state_code
+--   fact_queue_interval: queue_sk
+--   fact_csat_survey:    program_sk, agent_sk
+--   fact_billing_line:   client_sk, program_sk
+--   fact_adherence_daily: agent_sk
+--   fact_ticket:         program_sk, assigned_agent_sk
+--   agg_agent_daily:     agent_sk, site_code
+--   agg_queue_hourly:    queue_sk
 --
--- agg_site_daily and agg_agent_weekly are NOT created here — they become
--- materialized views in 08b-dm-materialized-views.sql.
+-- require_partition_filter=true on:
+--   fact_interaction, fact_agent_activity, fact_queue_interval
 -- ----------------------------------------------------------------------------
 
--- ===== Dimensions (9) — unpartitioned =====
+-- ============================================================================
+-- Dimensions (9) — unpartitioned, no clustering
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS dm.dim_date (
   date_key                    INT64,
@@ -130,10 +150,13 @@ CREATE TABLE IF NOT EXISTS dm.dim_disposition (
   billable_flag               BOOL
 );
 
--- ===== Facts (9) — partitioned + clustered =====
--- fact_interaction: multi-col Hive partition (date_key INT, channel STRING)
---   → BQ: partition on date_key only; channel demoted to cluster col.
+-- ============================================================================
+-- Facts (9) — integer-range or date partitioning + clustering
+-- ============================================================================
 
+-- fact_interaction: multi-col Hive partition (date_key INT, channel STRING) →
+-- BQ: partitioned on date_key only; channel demoted to cluster column.
+-- Source: CLUSTERED BY (agent_sk) INTO 16 BUCKETS → expanded cluster list.
 CREATE TABLE IF NOT EXISTS dm.fact_interaction (
   interaction_id              STRING,
   client_sk                   INT64,
@@ -146,13 +169,14 @@ CREATE TABLE IF NOT EXISTS dm.fact_interaction (
   handle_seconds              INT64,
   resolved_flag               BOOL,
   source_system               STRING,
+  -- former partition columns appended at end
   date_key                    INT64,
   channel                     STRING
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
-CLUSTER BY (agent_sk, channel, client_sk, customer_ref)
-OPTIONS (
-  require_partition_filter = true
+CLUSTER BY agent_sk, channel, client_sk, customer_ref
+OPTIONS(
+  require_partition_filter=true
 );
 
 CREATE TABLE IF NOT EXISTS dm.fact_agent_activity (
@@ -165,9 +189,9 @@ CREATE TABLE IF NOT EXISTS dm.fact_agent_activity (
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
-CLUSTER BY (agent_sk, state_code)
-OPTIONS (
-  require_partition_filter = true
+CLUSTER BY agent_sk, state_code
+OPTIONS(
+  require_partition_filter=true
 );
 
 CREATE TABLE IF NOT EXISTS dm.fact_queue_interval (
@@ -178,14 +202,14 @@ CREATE TABLE IF NOT EXISTS dm.fact_queue_interval (
   abandoned                   INT64,
   answered_in_sl              INT64,
   sl_threshold_sec            INT64,
-  avg_speed_answer_sec        NUMERIC(8, 2),
-  avg_handle_sec              NUMERIC(8, 2),
+  avg_speed_answer_sec        NUMERIC(8,2),
+  avg_handle_sec              NUMERIC(8,2),
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
-CLUSTER BY (queue_sk)
-OPTIONS (
-  require_partition_filter = true
+CLUSTER BY queue_sk
+OPTIONS(
+  require_partition_filter=true
 );
 
 CREATE TABLE IF NOT EXISTS dm.fact_csat_survey (
@@ -201,7 +225,7 @@ CREATE TABLE IF NOT EXISTS dm.fact_csat_survey (
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
-CLUSTER BY (program_sk, agent_sk);
+CLUSTER BY program_sk, agent_sk;
 
 CREATE TABLE IF NOT EXISTS dm.fact_qa_evaluation (
   qa_form_id                  STRING,
@@ -211,27 +235,29 @@ CREATE TABLE IF NOT EXISTS dm.fact_qa_evaluation (
   evaluated_ts                TIMESTAMP,
   scored_points               INT64,
   max_points                  INT64,
-  overall_pct                 NUMERIC(5, 2),
+  overall_pct                 NUMERIC(5,2),
   auto_fail                   BOOL,
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1));
 
+-- fact_billing_line: period_month promoted from STRING to DATE;
+-- partitioned by month granularity.
 CREATE TABLE IF NOT EXISTS dm.fact_billing_line (
   invoice_line_id             INT64,
   invoice_id                  INT64,
   client_sk                   INT64,
   program_sk                  INT64,
   service_code                STRING,
-  qty                         NUMERIC(12, 2),
-  unit_rate                   NUMERIC(12, 4),
-  line_amount                 NUMERIC(14, 2),
+  qty                         NUMERIC(12,2),
+  unit_rate                   NUMERIC(12,4),
+  line_amount                 NUMERIC(14,2),
   adjustment_flag             BOOL,
   invoice_status              STRING,
   period_month                DATE
 )
 PARTITION BY DATE_TRUNC(period_month, MONTH)
-CLUSTER BY (client_sk, program_sk);
+CLUSTER BY client_sk, program_sk;
 
 CREATE TABLE IF NOT EXISTS dm.fact_adherence_daily (
   agent_sk                    INT64,
@@ -239,12 +265,12 @@ CREATE TABLE IF NOT EXISTS dm.fact_adherence_daily (
   worked_minutes              INT64,
   exception_minutes           INT64,
   timeoff_minutes             INT64,
-  adherence_pct               NUMERIC(5, 2),
-  occupancy_pct               NUMERIC(5, 2),
+  adherence_pct               NUMERIC(5,2),
+  occupancy_pct               NUMERIC(5,2),
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
-CLUSTER BY (agent_sk);
+CLUSTER BY agent_sk;
 
 CREATE TABLE IF NOT EXISTS dm.fact_ticket (
   ticket_id                   INT64,
@@ -261,7 +287,7 @@ CREATE TABLE IF NOT EXISTS dm.fact_ticket (
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
-CLUSTER BY (program_sk, assigned_agent_sk);
+CLUSTER BY program_sk, assigned_agent_sk;
 
 CREATE TABLE IF NOT EXISTS dm.fact_ivr_path (
   session_ref                 STRING,
@@ -275,32 +301,36 @@ CREATE TABLE IF NOT EXISTS dm.fact_ivr_path (
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1));
 
--- ===== Physical aggregates (5) =====
--- agg_agent_weekly and agg_site_daily are NOT here — they become MVs in 08b.
+-- ============================================================================
+-- Aggregates (5 physical tables)
+-- agg_agent_weekly and agg_site_daily are replaced by materialized views
+-- in 08b-dm-materialized-views.sql per locked Performance Optimization.
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS dm.agg_agent_daily (
   agent_sk                    INT64,
   site_code                   STRING,
   interactions_handled        INT64,
-  avg_handle_seconds          NUMERIC(8, 2),
+  avg_handle_seconds          NUMERIC(8,2),
   talk_seconds                INT64,
   acw_seconds                 INT64,
   aux_seconds                 INT64,
-  adherence_pct               NUMERIC(5, 2),
-  occupancy_pct               NUMERIC(5, 2),
+  adherence_pct               NUMERIC(5,2),
+  occupancy_pct               NUMERIC(5,2),
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
-CLUSTER BY (agent_sk, site_code);
+CLUSTER BY agent_sk, site_code;
 
+-- agg_program_monthly: period_month promoted from STRING to DATE.
 CREATE TABLE IF NOT EXISTS dm.agg_program_monthly (
   client_sk                   INT64,
   program_sk                  INT64,
   line_of_business            STRING,
   interactions                INT64,
-  avg_handle_seconds          NUMERIC(8, 2),
-  avg_csat                    NUMERIC(5, 2),
-  billed_amount               NUMERIC(14, 2),
+  avg_handle_seconds          NUMERIC(8,2),
+  avg_csat                    NUMERIC(5,2),
+  billed_amount               NUMERIC(14,2),
   grouping_level              INT64,
   period_month                DATE
 )
@@ -312,34 +342,36 @@ CREATE TABLE IF NOT EXISTS dm.agg_queue_hourly (
   offered                     INT64,
   answered                    INT64,
   abandoned                   INT64,
-  sl_pct                      NUMERIC(5, 2),
+  sl_pct                      NUMERIC(5,2),
   forecast_volume             INT64,
-  volume_variance_pct         NUMERIC(7, 2),
+  volume_variance_pct         NUMERIC(7,2),
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
-CLUSTER BY (queue_sk);
+CLUSTER BY queue_sk;
 
+-- agg_csat_rollup_monthly: period_month promoted from STRING to DATE.
 CREATE TABLE IF NOT EXISTS dm.agg_csat_rollup_monthly (
   client_sk                   INT64,
   program_sk                  INT64,
   site_code                   STRING,
   surveys                     INT64,
-  avg_csat                    NUMERIC(5, 2),
-  pct_promoters               NUMERIC(5, 2),
-  pct_detractors              NUMERIC(5, 2),
+  avg_csat                    NUMERIC(5,2),
+  pct_promoters               NUMERIC(5,2),
+  pct_detractors              NUMERIC(5,2),
   grouping_id                 INT64,
   period_month                DATE
 )
 PARTITION BY DATE_TRUNC(period_month, MONTH);
 
+-- agg_billing_monthly: period_month promoted from STRING to DATE.
 CREATE TABLE IF NOT EXISTS dm.agg_billing_monthly (
   client_sk                   INT64,
   program_sk                  INT64,
-  billed_amount               NUMERIC(14, 2),
-  sla_credit_amount           NUMERIC(12, 2),
-  telco_cost_amount           NUMERIC(12, 2),
-  net_revenue                 NUMERIC(14, 2),
+  billed_amount               NUMERIC(14,2),
+  sla_credit_amount           NUMERIC(12,2),
+  telco_cost_amount           NUMERIC(12,2),
+  net_revenue                 NUMERIC(14,2),
   period_month                DATE
 )
 PARTITION BY DATE_TRUNC(period_month, MONTH);
