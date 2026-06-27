@@ -51,3 +51,57 @@ patterns are present. (Wired up in P0-8 / `ci/run-meta-validation.sh`.)
 | Cross-engine declarative seeder (`given` → tables in BOTH source HS2 + dest BQ; no Python loader) | `lib/build.py` (`seed_given`) | exercised by `tests/transform_diff/` | ✅ |
 | Transform equivalence — `transform_diff` (same `given` → legacy T on Impala vs migrated T on BQ; legacy = oracle) | `lib/transform_diff.py` | `tests/transform_diff/` (golden + negative) | ✅ |
 
+## BigQuery Physical Schema DDL — Acceptance Criteria Coverage
+
+Full DDL validation for 115 objects (98 tables + 2 MVs + 15 views) across 3 datasets
+(staging, ods, dm). Run via `ci/run_ddl_validation.sh`.
+
+### AC → Test Mapping
+
+| AC | What It Verifies | Test Module | Key Checks | Count |
+|---|---|---|---|---|
+| **AC1** | 0 CREATE errors | `test_ddl_full_e2e::TestAC1_DDLApplication` | Apply 10 DDL files, split on `;`, per-object error attribution | ≥118 stmts |
+| **AC2** | 916 columns match source | `test_ddl_full_e2e::TestAC2_Columns` | Column presence/count, descriptions (70: 68 epoch + 2 lie), 4 complex columns (sections, messages, metadata, keywords) with recursive sub-field verification via COLUMN_FIELD_PATHS, DECIMAL precision/scale | 916 cols |
+| **AC3** | Object types correct | `test_ddl_full_e2e::TestAC3_ObjectTypes` + `test_object_types` | 98 BASE TABLE + 2 MV + 15 VIEW; no silent type flips; 2 intentional MV replacements | 115 objects |
+| **AC4** | Partition/cluster/options | `test_ddl_full_e2e::TestAC4_PartitionClusterOptions` | 12 clustered tables (exact column lists), 10 RANGE_BUCKET + 4 DATE_TRUNC partitions, 3 require_partition_filter, 10 file-feed expiration (365d), 4 ACID tables native | ~40 checks |
+| **AC5** | FK type consistency | `test_ddl_full_e2e::TestAC5_FKConsistency` + `test_fk_consistency` | 56 FK→PK paths all INT64↔INT64; 4 surrogate-key chains; self-FK; cross-dataset paths | 56 paths |
+| **AC6** | SELECT * succeeds | `test_ddl_full_e2e::TestAC6_Queryability` + `test_queryability` | SELECT * LIMIT 0 on 115 objects; 3 tier-specific join queries | 118 queries |
+| **AC7** | Catalog read-back | `test_ddl_full_e2e::TestAC7_CatalogPresence` + `test_catalog_presence` | INFORMATION_SCHEMA.TABLES all 115 objects present + correct type | 115 objects |
+| **AC8** | Live execution proof | *meta-constraint* | Every check queries live BQ INFORMATION_SCHEMA — no offline parse, dry-run, or DDL-vs-DDL comparison | all |
+| **AC9** | Scan reduction | `test_scan_reduction::TestScanReduction` | 10 cluster-filtered vs unfiltered (Job API bytes_processed); 3 partition-filter rejections; 3 partition pruning | 16 benchmarks |
+
+### Source Ground Truth
+
+All comparisons use:
+- **Source side**: `manifests/tables.yaml` + `hive/ddl/*.hql` + `docs/EPOCH-POLICY.md`
+- **Target side**: Live BQ `INFORMATION_SCHEMA.COLUMNS`, `INFORMATION_SCHEMA.TABLES`,
+  `INFORMATION_SCHEMA.TABLE_OPTIONS`, `INFORMATION_SCHEMA.COLUMN_FIELD_PATHS`
+
+No offline parse, dry-run, or DDL-vs-DDL comparison counts as a pass (AC8).
+
+### Execution
+
+```
+# AC1–AC8 (no data needed):
+ci/run_ddl_validation.sh
+
+# AC1–AC9 (seeds synthetic data for scan benchmarks):
+ci/run_ddl_validation.sh --with-perf
+```
+
+### DDL File Inventory
+
+| File | Objects | Count |
+|---|---|---|
+| `sql/ddl/01-create-datasets.sql` | CREATE SCHEMA for staging, ods, dm | 3 |
+| `sql/ddl/02-staging-sqoop-mirrors.sql` | 27 Sqoop mirror tables | 27 |
+| `sql/ddl/03-staging-delta-feeds.sql` | 8 delta CDC tables | 8 |
+| `sql/ddl/04-staging-file-feeds.sql` | 10 file-feed tables (partitioned + clustered + expiring) | 10 |
+| `sql/ddl/05-ods-cleanse.sql` | 15 ODS cleanse tables | 15 |
+| `sql/ddl/06-ods-delta-scd2.sql` | 8 delta-merge + 3 SCD-2 tables | 11 |
+| `sql/ddl/07-ods-acid.sql` | 4 former ACID tables (2 clustered) | 4 |
+| `sql/ddl/08-dm-tables.sql` | 9 dims + 9 facts + 5 aggs (partitioned + clustered) | 23 |
+| `sql/ddl/08b-dm-materialized-views.sql` | 2 materialized views | 2 |
+| `sql/ddl/09-dm-views.sql` | 15 analyst-facing views (Hive→BQ dialect translated) | 15 |
+| **Total** | | **118 stmts** |
+
