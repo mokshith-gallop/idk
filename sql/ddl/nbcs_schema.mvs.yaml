@@ -1,0 +1,1500 @@
+# ===========================================================================
+# nbcs_schema.mvs.yaml — Mode-2 build-and-verify for the full BigQuery
+# physical schema DDL (115 objects across 3 datasets: staging, ods, dm).
+#
+# The DDL files use fully-qualified dataset names (staging.X, ods.Y, dm.Z),
+# so 01-create-datasets.sql creates the schemas first; subsequent files
+# create tables/MVs/views within them. The harness applies each DDL file
+# verbatim in lexicographic order.
+#
+# Validation suites run per-dataset schema_conformance against the live
+# BQ catalog after DDL application. Source ground truth comes from
+# manifests/tables.yaml + hive/ddl/*.hql (never from the DDL files).
+# ===========================================================================
+name: nbcs_full_schema_ddl
+connections:
+  target: { engine: bigquery }
+
+migration:
+  # DDL uses fully-qualified dataset names (staging/ods/dm), not the build
+  # dataset. The build dataset is used only as the default dataset for the
+  # harness; the actual objects live in their declared schemas.
+  steps:
+    - { kind: ddl, sql: sql/ddl/01-create-datasets.sql }
+    - { kind: ddl, sql: sql/ddl/02-staging-sqoop-mirrors.sql }
+    - { kind: ddl, sql: sql/ddl/03-staging-delta-feeds.sql }
+    - { kind: ddl, sql: sql/ddl/04-staging-file-feeds.sql }
+    - { kind: ddl, sql: sql/ddl/05-ods-cleanse.sql }
+    - { kind: ddl, sql: sql/ddl/06-ods-delta-scd2.sql }
+    - { kind: ddl, sql: sql/ddl/07-ods-acid.sql }
+    - { kind: ddl, sql: sql/ddl/08-dm-tables.sql }
+    - { kind: ddl, sql: sql/ddl/08b-dm-materialized-views.sql }
+    - { kind: ddl, sql: sql/ddl/09-dm-views.sql }
+
+suites:
+  # -----------------------------------------------------------------------
+  # Staging dataset: 45 tables (27 sqoop + 8 delta + 10 file-feed)
+  # -----------------------------------------------------------------------
+  - pattern: schema_conformance
+    id: staging-schema
+    target_dataset: staging
+    expect_table_count: 45
+    tables:
+      # -- CRM sqoop mirrors (6) --
+      - table: stg_crm_client
+        columns:
+          - { name: client_id, type: INT64 }
+          - { name: client_code, type: STRING }
+          - { name: client_name, type: STRING }
+          - { name: industry, type: STRING }
+          - { name: hq_country, type: STRING }
+          - { name: status, type: STRING }
+          - { name: created_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: updated_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_crm_client_contact
+        columns:
+          - { name: contact_id, type: INT64 }
+          - { name: client_id, type: INT64 }
+          - { name: full_name, type: STRING }
+          - { name: email, type: STRING }
+          - { name: phone, type: STRING }
+          - { name: role, type: STRING }
+          - { name: is_primary, type: BOOL }
+          - { name: created_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_crm_program
+        columns:
+          - { name: program_id, type: INT64 }
+          - { name: client_id, type: INT64 }
+          - { name: program_code, type: STRING }
+          - { name: program_name, type: STRING }
+          - { name: line_of_business, type: STRING }
+          - { name: channel_mix, type: STRING }
+          - { name: site_code, type: STRING }
+          - { name: status, type: STRING }
+          - { name: go_live_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: updated_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_crm_contract
+        columns:
+          - { name: contract_id, type: INT64 }
+          - { name: client_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: contract_no, type: STRING }
+          - { name: start_dt, type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: end_dt, type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: billing_model, type: STRING }
+          - { name: currency, type: STRING }
+          - { name: signed_dt, type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: status, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_crm_contract_line
+        columns:
+          - { name: contract_line_id, type: INT64 }
+          - { name: contract_id, type: INT64 }
+          - { name: line_no, type: INT64 }
+          - { name: service_code, type: STRING }
+          - { name: uom, type: STRING }
+          - { name: unit_rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: min_commit, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: effective_dt, type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_crm_sla_target
+        columns:
+          - { name: sla_target_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: queue_id, type: INT64 }
+          - { name: metric_code, type: STRING }
+          - { name: target_value, type: "NUMERIC(10,4)", scale: 4 }
+          - { name: penalty_pct, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: effective_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      # -- HR sqoop mirrors (5) --
+      - table: stg_hr_agent
+        columns:
+          - { name: agent_id, type: INT64 }
+          - { name: employee_no, type: STRING }
+          - { name: first_name, type: STRING }
+          - { name: last_name, type: STRING }
+          - { name: email, type: STRING }
+          - { name: org_unit_id, type: INT64 }
+          - { name: job_grade, type: STRING }
+          - { name: employment_type, type: STRING }
+          - { name: hire_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: term_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: status, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_hr_org_unit
+        columns:
+          - { name: org_unit_id, type: INT64 }
+          - { name: parent_unit_id, type: INT64 }
+          - { name: unit_code, type: STRING }
+          - { name: unit_name, type: STRING }
+          - { name: unit_type, type: STRING }
+          - { name: site_code, type: STRING }
+          - { name: cost_center, type: STRING }
+          - { name: created_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_hr_employment_event
+        columns:
+          - { name: event_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: event_type, type: STRING }
+          - { name: event_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: from_org_unit_id, type: INT64 }
+          - { name: to_org_unit_id, type: INT64 }
+          - { name: reason_code, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_hr_skill
+        columns:
+          - { name: skill_id, type: INT64 }
+          - { name: skill_code, type: STRING }
+          - { name: skill_name, type: STRING }
+          - { name: skill_family, type: STRING }
+          - { name: created_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_hr_agent_skill
+        columns:
+          - { name: agent_skill_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: skill_id, type: INT64 }
+          - { name: proficiency, type: INT64 }
+          - { name: certified, type: BOOL }
+          - { name: effective_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: expiry_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      # -- WFM sqoop mirrors (5) --
+      - table: stg_wfm_shift
+        columns:
+          - { name: shift_id, type: INT64 }
+          - { name: shift_code, type: STRING }
+          - { name: shift_name, type: STRING }
+          - { name: start_hhmm, type: STRING }
+          - { name: end_hhmm, type: STRING }
+          - { name: overnight_flag, type: BOOL }
+          - { name: site_code, type: STRING }
+          - { name: created_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_wfm_schedule
+        columns:
+          - { name: schedule_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: shift_id, type: INT64 }
+          - { name: sched_date, type: STRING }
+          - { name: start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: paid_minutes, type: INT64 }
+          - { name: activity_code, type: STRING }
+          - { name: load_date, type: DATE }
+          - { name: site_code, type: STRING }
+      - table: stg_wfm_adherence_event
+        columns:
+          - { name: adherence_event_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: schedule_id, type: INT64 }
+          - { name: exception_type, type: STRING }
+          - { name: start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: approved_flag, type: BOOL }
+          - { name: load_date, type: DATE }
+      - table: stg_wfm_forecast
+        columns:
+          - { name: forecast_id, type: INT64 }
+          - { name: queue_id, type: INT64 }
+          - { name: interval_start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: forecast_volume, type: INT64 }
+          - { name: forecast_aht_sec, type: INT64 }
+          - { name: required_fte, type: "NUMERIC(8,2)", scale: 2 }
+          - { name: load_date, type: DATE }
+      - table: stg_wfm_timeoff_request
+        columns:
+          - { name: timeoff_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: request_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: start_date, type: STRING }
+          - { name: end_date, type: STRING }
+          - { name: timeoff_type, type: STRING }
+          - { name: status, type: STRING }
+          - { name: load_date, type: DATE }
+      # -- Telephony sqoop mirrors (5) --
+      - table: stg_tel_call
+        columns:
+          - { name: call_id, type: INT64 }
+          - { name: ani, type: STRING }
+          - { name: dnis, type: STRING }
+          - { name: queue_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: answer_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: disposition_code, type: STRING }
+          - { name: direction, type: STRING }
+          - { name: recording_id, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_tel_call_segment
+        columns:
+          - { name: segment_id, type: INT64 }
+          - { name: call_id, type: INT64 }
+          - { name: segment_no, type: INT64 }
+          - { name: segment_type, type: STRING }
+          - { name: start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: agent_id, type: INT64 }
+          - { name: load_date, type: DATE }
+      - table: stg_tel_queue
+        columns:
+          - { name: queue_id, type: INT64 }
+          - { name: queue_code, type: STRING }
+          - { name: queue_name, type: STRING }
+          - { name: program_id, type: INT64 }
+          - { name: media_type, type: STRING }
+          - { name: priority, type: INT64 }
+          - { name: created_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_tel_agent_state_event
+        columns:
+          - { name: state_event_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: state_code, type: STRING }
+          - { name: start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: reason_code, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_tel_disposition_code
+        columns:
+          - { name: disposition_code, type: STRING }
+          - { name: disposition_desc, type: STRING }
+          - { name: category, type: STRING }
+          - { name: billable_flag, type: BOOL }
+          - { name: created_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      # -- Ticketing sqoop mirrors (3) --
+      - table: stg_tkt_ticket
+        columns:
+          - { name: ticket_id, type: INT64 }
+          - { name: ticket_no, type: STRING }
+          - { name: program_id, type: INT64 }
+          - { name: category_id, type: INT64 }
+          - { name: opened_by_agent_id, type: INT64 }
+          - { name: assigned_agent_id, type: INT64 }
+          - { name: interaction_ref, type: STRING }
+          - { name: priority, type: STRING }
+          - { name: status, type: STRING }
+          - { name: created_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: updated_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_tkt_ticket_event
+        columns:
+          - { name: ticket_event_id, type: INT64 }
+          - { name: ticket_id, type: INT64 }
+          - { name: event_type, type: STRING }
+          - { name: event_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: actor_agent_id, type: INT64 }
+          - { name: old_value, type: STRING }
+          - { name: new_value, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_tkt_category
+        columns:
+          - { name: category_id, type: INT64 }
+          - { name: category_code, type: STRING }
+          - { name: category_name, type: STRING }
+          - { name: sla_hours, type: INT64 }
+          - { name: created_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      # -- Finance sqoop mirrors (3) --
+      - table: stg_fin_invoice
+        columns:
+          - { name: invoice_id, type: INT64 }
+          - { name: invoice_no, type: STRING }
+          - { name: client_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: period_month, type: STRING }
+          - { name: issued_ts_sec, type: INT64, description: "!! name says seconds, VALUES ARE MILLIS !!" }
+          - { name: due_ts_sec, type: INT64, description: "!! name says seconds, VALUES ARE MILLIS !!" }
+          - { name: currency, type: STRING }
+          - { name: total_amount, type: "NUMERIC(14,2)", scale: 2 }
+          - { name: status, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_fin_invoice_line
+        columns:
+          - { name: invoice_line_id, type: INT64 }
+          - { name: invoice_id, type: INT64 }
+          - { name: contract_line_id, type: INT64 }
+          - { name: qty, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: unit_rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: line_amount, type: "NUMERIC(14,2)", scale: 2 }
+          - { name: adjustment_flag, type: BOOL }
+          - { name: created_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_fin_rate_card
+        columns:
+          - { name: rate_card_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: service_code, type: STRING }
+          - { name: rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: currency, type: STRING }
+          - { name: effective_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: expiry_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      # -- Delta feeds (8) --
+      - table: stg_fin_timesheet_delta
+        columns:
+          - { name: timesheet_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: work_date, type: STRING }
+          - { name: program_id, type: INT64 }
+          - { name: billable_minutes, type: INT64 }
+          - { name: nonbillable_minutes, type: INT64 }
+          - { name: approved_flag, type: BOOL }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_fin_payroll_adj_delta
+        columns:
+          - { name: adjustment_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: period_month, type: STRING }
+          - { name: adj_type, type: STRING }
+          - { name: amount, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_crm_sla_credit_delta
+        columns:
+          - { name: sla_credit_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: sla_target_id, type: INT64 }
+          - { name: period_month, type: STRING }
+          - { name: credit_amount, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: reason, type: STRING }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_tel_callback_request_delta
+        columns:
+          - { name: callback_id, type: INT64 }
+          - { name: call_id, type: INT64 }
+          - { name: queue_id, type: INT64 }
+          - { name: requested_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: scheduled_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: completed_flag, type: BOOL }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_wfm_shift_swap_delta
+        columns:
+          - { name: swap_id, type: INT64 }
+          - { name: requesting_agent_id, type: INT64 }
+          - { name: accepting_agent_id, type: INT64 }
+          - { name: schedule_id, type: INT64 }
+          - { name: swap_date, type: STRING }
+          - { name: status, type: STRING }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_tkt_worklog_delta
+        columns:
+          - { name: worklog_id, type: INT64 }
+          - { name: ticket_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: minutes_logged, type: INT64 }
+          - { name: log_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: note, type: STRING }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_hr_attrition_event_delta
+        columns:
+          - { name: attrition_event_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: notice_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: last_day, type: STRING }
+          - { name: attrition_type, type: STRING }
+          - { name: reason_code, type: STRING }
+          - { name: regrettable_flag, type: BOOL }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_fin_rate_card_change_delta
+        columns:
+          - { name: rate_change_id, type: INT64 }
+          - { name: rate_card_id, type: INT64 }
+          - { name: old_rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: new_rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: change_reason, type: STRING }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      # -- File feeds (10) — partitioned + clustered + expiring --
+      - table: stg_file_interaction_export
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: interaction_ref, type: STRING }
+          - { name: channel, type: STRING }
+          - { name: client_interaction_id, type: STRING }
+          - { name: agent_email, type: STRING }
+          - { name: start_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: end_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: outcome, type: STRING }
+          - { name: customer_ref, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_survey_csat
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: survey_id, type: STRING }
+          - { name: interaction_ref, type: STRING }
+          - { name: survey_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: csat_score, type: INT64 }
+          - { name: nps_score, type: INT64 }
+          - { name: fcr_claimed, type: BOOL }
+          - { name: verbatim, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_qa_forms
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: qa_form_id, type: STRING }
+          - { name: interaction_ref, type: STRING }
+          - { name: evaluator_email, type: STRING }
+          - { name: evaluated_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: form_version, type: STRING }
+          - { name: sections, type: "ARRAY<STRUCT<section_code STRING, max_points INT64, scored_points INT64>>" }
+          - { name: auto_fail, type: BOOL }
+          - { name: overall_pct, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_ivr_logs
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: event_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: session_ref, type: STRING }
+          - { name: menu_path, type: STRING }
+          - { name: key_pressed, type: STRING }
+          - { name: raw_tail, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_chat_transcripts
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: chat_ref, type: STRING }
+          - { name: queue_code, type: STRING }
+          - { name: agent_email, type: STRING }
+          - { name: started_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: ended_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: messages, type: "ARRAY<STRUCT<sender STRING, ts_ms INT64, text STRING>>" }
+          - { name: metadata, type: JSON }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_roster
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: employee_no, type: STRING }
+          - { name: agent_email, type: STRING }
+          - { name: client_login, type: STRING }
+          - { name: role_on_program, type: STRING }
+          - { name: active_flag, type: BOOL }
+          - { name: as_of_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_telco_invoice
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: telco_invoice_id, type: STRING }
+          - { name: carrier, type: STRING }
+          - { name: circuit_id, type: STRING }
+          - { name: usage_minutes, type: INT64 }
+          - { name: charge_amount, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: bill_period, type: STRING }
+          - { name: billed_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_dialer_result
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: attempt_id, type: STRING }
+          - { name: campaign_code, type: STRING }
+          - { name: phone_hash, type: STRING }
+          - { name: agent_id, type: INT64 }
+          - { name: attempt_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: result_code, type: STRING }
+          - { name: talk_seconds, type: INT64 }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_email_interaction
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: email_ref, type: STRING }
+          - { name: mailbox, type: STRING }
+          - { name: agent_email, type: STRING }
+          - { name: received_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: first_reply_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: resolved_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: subject_category, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_speech_analytics
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: recording_id, type: STRING }
+          - { name: call_ref, type: STRING }
+          - { name: analyzed_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: sentiment_score, type: FLOAT64 }
+          - { name: silence_pct, type: FLOAT64 }
+          - { name: talk_over_count, type: INT64 }
+          - { name: keywords, type: "ARRAY<STRING>" }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+
+  # -----------------------------------------------------------------------
+  # ODS dataset: 30 tables (15 cleanse + 8 delta-merge + 3 SCD-2 + 4 ACID)
+  # -----------------------------------------------------------------------
+  - pattern: schema_conformance
+    id: ods-schema
+    target_dataset: ods
+    expect_table_count: 30
+    tables:
+      # -- Cleanse tables (15) --
+      - table: ods_program
+        columns:
+          - { name: program_id, type: INT64 }
+          - { name: client_id, type: INT64 }
+          - { name: program_code, type: STRING }
+          - { name: program_name, type: STRING }
+          - { name: line_of_business, type: STRING }
+          - { name: channel_mix, type: STRING }
+          - { name: site_code, type: STRING }
+          - { name: status, type: STRING }
+          - { name: go_live_ts, type: TIMESTAMP }
+          - { name: updated_ts, type: TIMESTAMP }
+          - { name: snapshot_date, type: DATE }
+      - table: ods_contract
+        columns:
+          - { name: contract_id, type: INT64 }
+          - { name: client_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: contract_no, type: STRING }
+          - { name: start_ts, type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP }
+          - { name: billing_model, type: STRING }
+          - { name: currency, type: STRING }
+          - { name: signed_ts, type: TIMESTAMP }
+          - { name: status, type: STRING }
+          - { name: snapshot_date, type: DATE }
+      - table: ods_contract_line
+        columns:
+          - { name: contract_line_id, type: INT64 }
+          - { name: contract_id, type: INT64 }
+          - { name: line_no, type: INT64 }
+          - { name: service_code, type: STRING }
+          - { name: uom, type: STRING }
+          - { name: unit_rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: min_commit, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: effective_ts, type: TIMESTAMP }
+          - { name: snapshot_date, type: DATE }
+      - table: ods_org_unit
+        columns:
+          - { name: org_unit_id, type: INT64 }
+          - { name: parent_unit_id, type: INT64 }
+          - { name: unit_code, type: STRING }
+          - { name: unit_name, type: STRING }
+          - { name: unit_type, type: STRING }
+          - { name: site_code, type: STRING }
+          - { name: cost_center, type: STRING }
+          - { name: created_ts, type: TIMESTAMP }
+          - { name: snapshot_date, type: DATE }
+      - table: ods_queue
+        columns:
+          - { name: queue_id, type: INT64 }
+          - { name: queue_code, type: STRING }
+          - { name: queue_name, type: STRING }
+          - { name: program_id, type: INT64 }
+          - { name: media_type, type: STRING }
+          - { name: priority, type: INT64 }
+          - { name: created_ts, type: TIMESTAMP }
+          - { name: snapshot_date, type: DATE }
+      - table: ods_schedule
+        columns:
+          - { name: schedule_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: shift_id, type: INT64 }
+          - { name: shift_code, type: STRING }
+          - { name: start_ts, type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP }
+          - { name: paid_minutes, type: INT64 }
+          - { name: activity_code, type: STRING }
+          - { name: site_code, type: STRING }
+          - { name: sched_date, type: DATE }
+      - table: ods_adherence_event
+        columns:
+          - { name: adherence_event_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: schedule_id, type: INT64 }
+          - { name: exception_type, type: STRING }
+          - { name: start_ts, type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP }
+          - { name: exception_minutes, type: INT64 }
+          - { name: approved_flag, type: BOOL }
+          - { name: event_date, type: DATE }
+      - table: ods_call
+        columns:
+          - { name: call_id, type: INT64 }
+          - { name: queue_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: direction, type: STRING }
+          - { name: start_ts, type: TIMESTAMP }
+          - { name: answer_ts, type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP }
+          - { name: ring_seconds, type: INT64 }
+          - { name: talk_seconds, type: INT64 }
+          - { name: hold_seconds, type: INT64 }
+          - { name: acw_seconds, type: INT64 }
+          - { name: abandoned_flag, type: BOOL }
+          - { name: disposition_code, type: STRING }
+          - { name: recording_id, type: STRING }
+          - { name: call_date, type: DATE }
+      - table: ods_ivr_session
+        columns:
+          - { name: session_ref, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: first_event_ts, type: TIMESTAMP }
+          - { name: last_event_ts, type: TIMESTAMP }
+          - { name: menu_path_full, type: STRING }
+          - { name: hops, type: INT64 }
+          - { name: contained_flag, type: BOOL }
+          - { name: exit_key, type: STRING }
+          - { name: event_date, type: DATE }
+      - table: ods_chat_session
+        columns:
+          - { name: chat_ref, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: queue_code, type: STRING }
+          - { name: agent_email, type: STRING }
+          - { name: started_ts, type: TIMESTAMP }
+          - { name: ended_ts, type: TIMESTAMP }
+          - { name: message_count, type: INT64 }
+          - { name: agent_message_count, type: INT64 }
+          - { name: customer_message_count, type: INT64 }
+          - { name: first_response_seconds, type: INT64 }
+          - { name: event_date, type: DATE }
+      - table: ods_email_interaction
+        columns:
+          - { name: email_ref, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: mailbox, type: STRING }
+          - { name: agent_email, type: STRING }
+          - { name: received_ts, type: TIMESTAMP }
+          - { name: first_reply_ts, type: TIMESTAMP }
+          - { name: resolved_ts, type: TIMESTAMP }
+          - { name: reply_sla_minutes, type: INT64 }
+          - { name: subject_category, type: STRING }
+          - { name: event_date, type: DATE }
+      - table: ods_survey_response
+        columns:
+          - { name: survey_id, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: interaction_ref, type: STRING }
+          - { name: survey_ts, type: TIMESTAMP }
+          - { name: csat_score, type: INT64 }
+          - { name: nps_score, type: INT64 }
+          - { name: fcr_claimed, type: BOOL }
+          - { name: verbatim, type: STRING }
+          - { name: event_date, type: DATE }
+      - table: ods_qa_evaluation
+        columns:
+          - { name: qa_form_id, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: interaction_ref, type: STRING }
+          - { name: evaluator_email, type: STRING }
+          - { name: evaluated_ts, type: TIMESTAMP }
+          - { name: form_version, type: STRING }
+          - { name: section_count, type: INT64 }
+          - { name: scored_points, type: INT64 }
+          - { name: max_points, type: INT64 }
+          - { name: auto_fail, type: BOOL }
+          - { name: overall_pct, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: event_date, type: DATE }
+      - table: ods_interaction
+        cluster_by: [agent_id, client_code]
+        columns:
+          - { name: interaction_id, type: STRING }
+          - { name: channel, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: program_id, type: INT64 }
+          - { name: queue_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: customer_ref, type: STRING }
+          - { name: start_ts, type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP }
+          - { name: handle_seconds, type: INT64 }
+          - { name: resolved_flag, type: BOOL }
+          - { name: source_system, type: STRING }
+          - { name: event_date, type: DATE }
+      - table: ods_dialer_attempt
+        columns:
+          - { name: attempt_id, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: campaign_code, type: STRING }
+          - { name: agent_id, type: INT64 }
+          - { name: attempt_ts, type: TIMESTAMP }
+          - { name: result_code, type: STRING }
+          - { name: connected_flag, type: BOOL }
+          - { name: talk_seconds, type: INT64 }
+          - { name: event_date, type: DATE }
+      # -- Delta-merge tables (8) --
+      - table: ods_timesheet
+        columns:
+          - { name: timesheet_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: work_date, type: STRING }
+          - { name: program_id, type: INT64 }
+          - { name: billable_minutes, type: INT64 }
+          - { name: nonbillable_minutes, type: INT64 }
+          - { name: approved_flag, type: BOOL }
+          - { name: last_change_ts, type: TIMESTAMP }
+          - { name: work_month, type: DATE }
+      - table: ods_payroll_adjustment
+        columns:
+          - { name: adjustment_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: adj_type, type: STRING }
+          - { name: amount, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: last_change_ts, type: TIMESTAMP }
+          - { name: period_month, type: DATE }
+      - table: ods_sla_credit
+        columns:
+          - { name: sla_credit_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: sla_target_id, type: INT64 }
+          - { name: credit_amount, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: reason, type: STRING }
+          - { name: last_change_ts, type: TIMESTAMP }
+          - { name: period_month, type: DATE }
+      - table: ods_callback_request
+        columns:
+          - { name: callback_id, type: INT64 }
+          - { name: call_id, type: INT64 }
+          - { name: queue_id, type: INT64 }
+          - { name: requested_ts, type: TIMESTAMP }
+          - { name: scheduled_ts, type: TIMESTAMP }
+          - { name: completed_flag, type: BOOL }
+          - { name: last_change_ts, type: TIMESTAMP }
+          - { name: event_date, type: DATE }
+      - table: ods_shift_swap
+        columns:
+          - { name: swap_id, type: INT64 }
+          - { name: requesting_agent_id, type: INT64 }
+          - { name: accepting_agent_id, type: INT64 }
+          - { name: schedule_id, type: INT64 }
+          - { name: swap_date, type: STRING }
+          - { name: status, type: STRING }
+          - { name: last_change_ts, type: TIMESTAMP }
+          - { name: swap_month, type: DATE }
+      - table: ods_ticket_worklog
+        columns:
+          - { name: worklog_id, type: INT64 }
+          - { name: ticket_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: minutes_logged, type: INT64 }
+          - { name: log_ts, type: TIMESTAMP }
+          - { name: note, type: STRING }
+          - { name: last_change_ts, type: TIMESTAMP }
+          - { name: event_date, type: DATE }
+      - table: ods_attrition_event
+        columns:
+          - { name: attrition_event_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: notice_ts, type: TIMESTAMP }
+          - { name: last_day, type: STRING }
+          - { name: attrition_type, type: STRING }
+          - { name: reason_code, type: STRING }
+          - { name: regrettable_flag, type: BOOL }
+          - { name: last_change_ts, type: TIMESTAMP }
+          - { name: event_month, type: DATE }
+      - table: ods_rate_card
+        columns:
+          - { name: rate_card_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: service_code, type: STRING }
+          - { name: rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: currency, type: STRING }
+          - { name: effective_ts, type: TIMESTAMP }
+          - { name: expiry_ts, type: TIMESTAMP }
+          - { name: last_change_ts, type: TIMESTAMP }
+          - { name: snapshot_date, type: DATE }
+      # -- SCD-2 tables (3) --
+      - table: ods_agent_scd2
+        columns:
+          - { name: agent_history_id, type: STRING }
+          - { name: agent_id, type: INT64 }
+          - { name: employee_no, type: STRING }
+          - { name: org_unit_id, type: INT64 }
+          - { name: job_grade, type: STRING }
+          - { name: employment_type, type: STRING }
+          - { name: status, type: STRING }
+          - { name: eff_from_ts, type: TIMESTAMP }
+          - { name: eff_to_ts, type: TIMESTAMP }
+          - { name: is_current, type: BOOL }
+          - { name: eff_from_year, type: INT64 }
+      - table: ods_agent_skill_scd2
+        columns:
+          - { name: agent_skill_history_id, type: STRING }
+          - { name: agent_id, type: INT64 }
+          - { name: skill_id, type: INT64 }
+          - { name: skill_code, type: STRING }
+          - { name: proficiency, type: INT64 }
+          - { name: certified, type: BOOL }
+          - { name: eff_from_ts, type: TIMESTAMP }
+          - { name: eff_to_ts, type: TIMESTAMP }
+          - { name: is_current, type: BOOL }
+          - { name: eff_from_year, type: INT64 }
+      - table: ods_agent_assignment_scd2
+        columns:
+          - { name: assignment_history_id, type: STRING }
+          - { name: agent_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: queue_id, type: INT64 }
+          - { name: role_on_program, type: STRING }
+          - { name: eff_from_ts, type: TIMESTAMP }
+          - { name: eff_to_ts, type: TIMESTAMP }
+          - { name: is_current, type: BOOL }
+          - { name: eff_from_year, type: INT64 }
+      # -- ACID tables (4) --
+      - table: ods_client_acid
+        columns:
+          - { name: client_id, type: INT64 }
+          - { name: client_code, type: STRING }
+          - { name: client_name, type: STRING }
+          - { name: industry, type: STRING }
+          - { name: hq_country, type: STRING }
+          - { name: status, type: STRING }
+          - { name: created_ts, type: TIMESTAMP }
+          - { name: updated_ts, type: TIMESTAMP }
+      - table: ods_agent_acid
+        cluster_by: [agent_id]
+        columns:
+          - { name: agent_id, type: INT64 }
+          - { name: employee_no, type: STRING }
+          - { name: full_name, type: STRING }
+          - { name: email, type: STRING }
+          - { name: org_unit_id, type: INT64 }
+          - { name: job_grade, type: STRING }
+          - { name: employment_type, type: STRING }
+          - { name: hire_ts, type: TIMESTAMP }
+          - { name: term_ts, type: TIMESTAMP }
+          - { name: status, type: STRING }
+      - table: ods_ticket_acid
+        cluster_by: [ticket_id]
+        columns:
+          - { name: ticket_id, type: INT64 }
+          - { name: ticket_no, type: STRING }
+          - { name: program_id, type: INT64 }
+          - { name: category_id, type: INT64 }
+          - { name: assigned_agent_id, type: INT64 }
+          - { name: priority, type: STRING }
+          - { name: status, type: STRING }
+          - { name: created_ts, type: TIMESTAMP }
+          - { name: updated_ts, type: TIMESTAMP }
+          - { name: resolved_ts, type: TIMESTAMP }
+      - table: ods_invoice_acid
+        columns:
+          - { name: invoice_id, type: INT64 }
+          - { name: invoice_no, type: STRING }
+          - { name: client_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: period_month, type: STRING }
+          - { name: issued_ts, type: TIMESTAMP }
+          - { name: due_ts, type: TIMESTAMP }
+          - { name: currency, type: STRING }
+          - { name: total_amount, type: "NUMERIC(14,2)", scale: 2 }
+          - { name: status, type: STRING }
+
+  # -----------------------------------------------------------------------
+  # DM dataset: 23 tables + 2 MVs (9 dim + 9 fact + 5 agg + 2 MV)
+  # -----------------------------------------------------------------------
+  - pattern: schema_conformance
+    id: dm-schema
+    target_dataset: dm
+    expect_table_count: 25   # 23 tables + 2 MVs
+    tables:
+      # -- Dimensions (9) — unpartitioned --
+      - table: dim_date
+        columns:
+          - { name: date_key, type: INT64 }
+          - { name: full_date, type: STRING }
+          - { name: day_of_week, type: INT64 }
+          - { name: day_name, type: STRING }
+          - { name: week_of_year, type: INT64 }
+          - { name: month_no, type: INT64 }
+          - { name: month_name, type: STRING }
+          - { name: quarter_no, type: INT64 }
+          - { name: year_no, type: INT64 }
+          - { name: is_weekend, type: BOOL }
+          - { name: is_holiday_us, type: BOOL }
+          - { name: fiscal_period, type: STRING }
+      - table: dim_agent
+        columns:
+          - { name: agent_sk, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: employee_no, type: STRING }
+          - { name: full_name, type: STRING }
+          - { name: job_grade, type: STRING }
+          - { name: employment_type, type: STRING }
+          - { name: org_unit_id, type: INT64 }
+          - { name: team_name, type: STRING }
+          - { name: site_code, type: STRING }
+          - { name: status, type: STRING }
+          - { name: hire_date_key, type: INT64 }
+          - { name: is_current, type: BOOL }
+      - table: dim_client
+        columns:
+          - { name: client_sk, type: INT64 }
+          - { name: client_id, type: INT64 }
+          - { name: client_code, type: STRING }
+          - { name: client_name, type: STRING }
+          - { name: industry, type: STRING }
+          - { name: hq_country, type: STRING }
+          - { name: primary_contact_name, type: STRING }
+          - { name: primary_contact_email, type: STRING }
+          - { name: status, type: STRING }
+      - table: dim_program
+        columns:
+          - { name: program_sk, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: program_code, type: STRING }
+          - { name: program_name, type: STRING }
+          - { name: client_id, type: INT64 }
+          - { name: line_of_business, type: STRING }
+          - { name: channel_mix, type: STRING }
+          - { name: site_code, type: STRING }
+          - { name: billing_model, type: STRING }
+          - { name: status, type: STRING }
+          - { name: go_live_date_key, type: INT64 }
+      - table: dim_queue
+        columns:
+          - { name: queue_sk, type: INT64 }
+          - { name: queue_id, type: INT64 }
+          - { name: queue_code, type: STRING }
+          - { name: queue_name, type: STRING }
+          - { name: program_id, type: INT64 }
+          - { name: media_type, type: STRING }
+          - { name: priority, type: INT64 }
+      - table: dim_site
+        columns:
+          - { name: site_sk, type: INT64 }
+          - { name: site_code, type: STRING }
+          - { name: site_name, type: STRING }
+          - { name: region, type: STRING }
+          - { name: country, type: STRING }
+          - { name: timezone, type: STRING }
+      - table: dim_shift
+        columns:
+          - { name: shift_sk, type: INT64 }
+          - { name: shift_id, type: INT64 }
+          - { name: shift_code, type: STRING }
+          - { name: shift_name, type: STRING }
+          - { name: start_hhmm, type: STRING }
+          - { name: end_hhmm, type: STRING }
+          - { name: overnight_flag, type: BOOL }
+          - { name: site_code, type: STRING }
+      - table: dim_org
+        columns:
+          - { name: org_sk, type: INT64 }
+          - { name: org_unit_id, type: INT64 }
+          - { name: unit_code, type: STRING }
+          - { name: unit_name, type: STRING }
+          - { name: unit_type, type: STRING }
+          - { name: level1_name, type: STRING }
+          - { name: level2_name, type: STRING }
+          - { name: level3_name, type: STRING }
+          - { name: level4_name, type: STRING }
+          - { name: site_code, type: STRING }
+          - { name: cost_center, type: STRING }
+      - table: dim_disposition
+        columns:
+          - { name: disposition_sk, type: INT64 }
+          - { name: disposition_code, type: STRING }
+          - { name: disposition_desc, type: STRING }
+          - { name: category, type: STRING }
+          - { name: billable_flag, type: BOOL }
+      # -- Facts (9) — partitioned + clustered --
+      - table: fact_interaction
+        partition_by: date_key
+        cluster_by: [agent_sk, channel, client_sk, customer_ref]
+        table_options: { require_partition_filter: true }
+        columns:
+          - { name: interaction_id, type: STRING }
+          - { name: client_sk, type: INT64 }
+          - { name: program_sk, type: INT64 }
+          - { name: queue_sk, type: INT64 }
+          - { name: agent_sk, type: INT64 }
+          - { name: customer_ref, type: STRING }
+          - { name: start_ts, type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP }
+          - { name: handle_seconds, type: INT64 }
+          - { name: resolved_flag, type: BOOL }
+          - { name: source_system, type: STRING }
+          - { name: date_key, type: INT64 }
+          - { name: channel, type: STRING }
+      - table: fact_agent_activity
+        partition_by: date_key
+        cluster_by: [agent_sk, state_code]
+        table_options: { require_partition_filter: true }
+        columns:
+          - { name: agent_sk, type: INT64 }
+          - { name: state_code, type: STRING }
+          - { name: state_seconds, type: INT64 }
+          - { name: occurrence_count, type: INT64 }
+          - { name: first_state_ts, type: TIMESTAMP }
+          - { name: last_state_ts, type: TIMESTAMP }
+          - { name: date_key, type: INT64 }
+      - table: fact_queue_interval
+        partition_by: date_key
+        cluster_by: [queue_sk]
+        table_options: { require_partition_filter: true }
+        columns:
+          - { name: queue_sk, type: INT64 }
+          - { name: interval_start_ts, type: TIMESTAMP }
+          - { name: offered, type: INT64 }
+          - { name: answered, type: INT64 }
+          - { name: abandoned, type: INT64 }
+          - { name: answered_in_sl, type: INT64 }
+          - { name: sl_threshold_sec, type: INT64 }
+          - { name: avg_speed_answer_sec, type: "NUMERIC(8,2)", scale: 2 }
+          - { name: avg_handle_sec, type: "NUMERIC(8,2)", scale: 2 }
+          - { name: date_key, type: INT64 }
+      - table: fact_csat_survey
+        partition_by: date_key
+        cluster_by: [program_sk, agent_sk]
+        columns:
+          - { name: survey_id, type: STRING }
+          - { name: interaction_id, type: STRING }
+          - { name: client_sk, type: INT64 }
+          - { name: program_sk, type: INT64 }
+          - { name: agent_sk, type: INT64 }
+          - { name: survey_ts, type: TIMESTAMP }
+          - { name: csat_score, type: INT64 }
+          - { name: nps_score, type: INT64 }
+          - { name: fcr_claimed, type: BOOL }
+          - { name: date_key, type: INT64 }
+      - table: fact_qa_evaluation
+        partition_by: date_key
+        columns:
+          - { name: qa_form_id, type: STRING }
+          - { name: interaction_id, type: STRING }
+          - { name: agent_sk, type: INT64 }
+          - { name: program_sk, type: INT64 }
+          - { name: evaluated_ts, type: TIMESTAMP }
+          - { name: scored_points, type: INT64 }
+          - { name: max_points, type: INT64 }
+          - { name: overall_pct, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: auto_fail, type: BOOL }
+          - { name: date_key, type: INT64 }
+      - table: fact_billing_line
+        partition_by: period_month
+        cluster_by: [client_sk, program_sk]
+        columns:
+          - { name: invoice_line_id, type: INT64 }
+          - { name: invoice_id, type: INT64 }
+          - { name: client_sk, type: INT64 }
+          - { name: program_sk, type: INT64 }
+          - { name: service_code, type: STRING }
+          - { name: qty, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: unit_rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: line_amount, type: "NUMERIC(14,2)", scale: 2 }
+          - { name: adjustment_flag, type: BOOL }
+          - { name: invoice_status, type: STRING }
+          - { name: period_month, type: DATE }
+      - table: fact_adherence_daily
+        partition_by: date_key
+        cluster_by: [agent_sk]
+        columns:
+          - { name: agent_sk, type: INT64 }
+          - { name: scheduled_minutes, type: INT64 }
+          - { name: worked_minutes, type: INT64 }
+          - { name: exception_minutes, type: INT64 }
+          - { name: timeoff_minutes, type: INT64 }
+          - { name: adherence_pct, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: occupancy_pct, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: date_key, type: INT64 }
+      - table: fact_ticket
+        partition_by: date_key
+        cluster_by: [program_sk, assigned_agent_sk]
+        columns:
+          - { name: ticket_id, type: INT64 }
+          - { name: program_sk, type: INT64 }
+          - { name: category_code, type: STRING }
+          - { name: assigned_agent_sk, type: INT64 }
+          - { name: priority, type: STRING }
+          - { name: status, type: STRING }
+          - { name: created_ts, type: TIMESTAMP }
+          - { name: resolved_ts, type: TIMESTAMP }
+          - { name: resolution_minutes, type: INT64 }
+          - { name: sla_breached_flag, type: BOOL }
+          - { name: touch_count, type: INT64 }
+          - { name: date_key, type: INT64 }
+      - table: fact_ivr_path
+        partition_by: date_key
+        columns:
+          - { name: session_ref, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: menu_path_full, type: STRING }
+          - { name: hops, type: INT64 }
+          - { name: contained_flag, type: BOOL }
+          - { name: exit_key, type: STRING }
+          - { name: duration_seconds, type: INT64 }
+          - { name: date_key, type: INT64 }
+      # -- Physical aggregates (5) --
+      - table: agg_agent_daily
+        partition_by: date_key
+        cluster_by: [agent_sk, site_code]
+        columns:
+          - { name: agent_sk, type: INT64 }
+          - { name: site_code, type: STRING }
+          - { name: interactions_handled, type: INT64 }
+          - { name: avg_handle_seconds, type: "NUMERIC(8,2)", scale: 2 }
+          - { name: talk_seconds, type: INT64 }
+          - { name: acw_seconds, type: INT64 }
+          - { name: aux_seconds, type: INT64 }
+          - { name: adherence_pct, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: occupancy_pct, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: date_key, type: INT64 }
+      - table: agg_program_monthly
+        partition_by: period_month
+        columns:
+          - { name: client_sk, type: INT64 }
+          - { name: program_sk, type: INT64 }
+          - { name: line_of_business, type: STRING }
+          - { name: interactions, type: INT64 }
+          - { name: avg_handle_seconds, type: "NUMERIC(8,2)", scale: 2 }
+          - { name: avg_csat, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: billed_amount, type: "NUMERIC(14,2)", scale: 2 }
+          - { name: grouping_level, type: INT64 }
+          - { name: period_month, type: DATE }
+      - table: agg_queue_hourly
+        partition_by: date_key
+        cluster_by: [queue_sk]
+        columns:
+          - { name: queue_sk, type: INT64 }
+          - { name: hour_of_day, type: INT64 }
+          - { name: offered, type: INT64 }
+          - { name: answered, type: INT64 }
+          - { name: abandoned, type: INT64 }
+          - { name: sl_pct, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: forecast_volume, type: INT64 }
+          - { name: volume_variance_pct, type: "NUMERIC(7,2)", scale: 2 }
+          - { name: date_key, type: INT64 }
+      - table: agg_csat_rollup_monthly
+        partition_by: period_month
+        columns:
+          - { name: client_sk, type: INT64 }
+          - { name: program_sk, type: INT64 }
+          - { name: site_code, type: STRING }
+          - { name: surveys, type: INT64 }
+          - { name: avg_csat, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: pct_promoters, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: pct_detractors, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: grouping_id, type: INT64 }
+          - { name: period_month, type: DATE }
+      - table: agg_billing_monthly
+        partition_by: period_month
+        columns:
+          - { name: client_sk, type: INT64 }
+          - { name: program_sk, type: INT64 }
+          - { name: billed_amount, type: "NUMERIC(14,2)", scale: 2 }
+          - { name: sla_credit_amount, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: telco_cost_amount, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: net_revenue, type: "NUMERIC(14,2)", scale: 2 }
+          - { name: period_month, type: DATE }
+
+  # -----------------------------------------------------------------------
+  # AC3 — Object type verification (98 TABLE + 2 MV + 15 VIEW = 115)
+  # -----------------------------------------------------------------------
+  - pattern: object_type_check
+    id: object-types
+    datasets: [staging, ods, dm]
+    expect:
+      tables:   # 98 BASE TABLEs
+        - { dataset: staging, name: stg_crm_client }
+        - { dataset: staging, name: stg_crm_client_contact }
+        - { dataset: staging, name: stg_crm_program }
+        - { dataset: staging, name: stg_crm_contract }
+        - { dataset: staging, name: stg_crm_contract_line }
+        - { dataset: staging, name: stg_crm_sla_target }
+        - { dataset: staging, name: stg_hr_agent }
+        - { dataset: staging, name: stg_hr_org_unit }
+        - { dataset: staging, name: stg_hr_employment_event }
+        - { dataset: staging, name: stg_hr_skill }
+        - { dataset: staging, name: stg_hr_agent_skill }
+        - { dataset: staging, name: stg_wfm_shift }
+        - { dataset: staging, name: stg_wfm_schedule }
+        - { dataset: staging, name: stg_wfm_adherence_event }
+        - { dataset: staging, name: stg_wfm_forecast }
+        - { dataset: staging, name: stg_wfm_timeoff_request }
+        - { dataset: staging, name: stg_tel_call }
+        - { dataset: staging, name: stg_tel_call_segment }
+        - { dataset: staging, name: stg_tel_queue }
+        - { dataset: staging, name: stg_tel_agent_state_event }
+        - { dataset: staging, name: stg_tel_disposition_code }
+        - { dataset: staging, name: stg_tkt_ticket }
+        - { dataset: staging, name: stg_tkt_ticket_event }
+        - { dataset: staging, name: stg_tkt_category }
+        - { dataset: staging, name: stg_fin_invoice }
+        - { dataset: staging, name: stg_fin_invoice_line }
+        - { dataset: staging, name: stg_fin_rate_card }
+        - { dataset: staging, name: stg_fin_timesheet_delta }
+        - { dataset: staging, name: stg_fin_payroll_adj_delta }
+        - { dataset: staging, name: stg_crm_sla_credit_delta }
+        - { dataset: staging, name: stg_tel_callback_request_delta }
+        - { dataset: staging, name: stg_wfm_shift_swap_delta }
+        - { dataset: staging, name: stg_tkt_worklog_delta }
+        - { dataset: staging, name: stg_hr_attrition_event_delta }
+        - { dataset: staging, name: stg_fin_rate_card_change_delta }
+        - { dataset: staging, name: stg_file_interaction_export }
+        - { dataset: staging, name: stg_file_survey_csat }
+        - { dataset: staging, name: stg_file_qa_forms }
+        - { dataset: staging, name: stg_file_ivr_logs }
+        - { dataset: staging, name: stg_file_chat_transcripts }
+        - { dataset: staging, name: stg_file_roster }
+        - { dataset: staging, name: stg_file_telco_invoice }
+        - { dataset: staging, name: stg_file_dialer_result }
+        - { dataset: staging, name: stg_file_email_interaction }
+        - { dataset: staging, name: stg_file_speech_analytics }
+        - { dataset: ods, name: ods_program }
+        - { dataset: ods, name: ods_contract }
+        - { dataset: ods, name: ods_contract_line }
+        - { dataset: ods, name: ods_org_unit }
+        - { dataset: ods, name: ods_queue }
+        - { dataset: ods, name: ods_schedule }
+        - { dataset: ods, name: ods_adherence_event }
+        - { dataset: ods, name: ods_call }
+        - { dataset: ods, name: ods_ivr_session }
+        - { dataset: ods, name: ods_chat_session }
+        - { dataset: ods, name: ods_email_interaction }
+        - { dataset: ods, name: ods_survey_response }
+        - { dataset: ods, name: ods_qa_evaluation }
+        - { dataset: ods, name: ods_interaction }
+        - { dataset: ods, name: ods_dialer_attempt }
+        - { dataset: ods, name: ods_timesheet }
+        - { dataset: ods, name: ods_payroll_adjustment }
+        - { dataset: ods, name: ods_sla_credit }
+        - { dataset: ods, name: ods_callback_request }
+        - { dataset: ods, name: ods_shift_swap }
+        - { dataset: ods, name: ods_ticket_worklog }
+        - { dataset: ods, name: ods_attrition_event }
+        - { dataset: ods, name: ods_rate_card }
+        - { dataset: ods, name: ods_agent_scd2 }
+        - { dataset: ods, name: ods_agent_skill_scd2 }
+        - { dataset: ods, name: ods_agent_assignment_scd2 }
+        - { dataset: ods, name: ods_client_acid }
+        - { dataset: ods, name: ods_agent_acid }
+        - { dataset: ods, name: ods_ticket_acid }
+        - { dataset: ods, name: ods_invoice_acid }
+        - { dataset: dm, name: dim_date }
+        - { dataset: dm, name: dim_agent }
+        - { dataset: dm, name: dim_client }
+        - { dataset: dm, name: dim_program }
+        - { dataset: dm, name: dim_queue }
+        - { dataset: dm, name: dim_site }
+        - { dataset: dm, name: dim_shift }
+        - { dataset: dm, name: dim_org }
+        - { dataset: dm, name: dim_disposition }
+        - { dataset: dm, name: fact_interaction }
+        - { dataset: dm, name: fact_agent_activity }
+        - { dataset: dm, name: fact_queue_interval }
+        - { dataset: dm, name: fact_csat_survey }
+        - { dataset: dm, name: fact_qa_evaluation }
+        - { dataset: dm, name: fact_billing_line }
+        - { dataset: dm, name: fact_adherence_daily }
+        - { dataset: dm, name: fact_ticket }
+        - { dataset: dm, name: fact_ivr_path }
+        - { dataset: dm, name: agg_agent_daily }
+        - { dataset: dm, name: agg_program_monthly }
+        - { dataset: dm, name: agg_queue_hourly }
+        - { dataset: dm, name: agg_csat_rollup_monthly }
+        - { dataset: dm, name: agg_billing_monthly }
+      materialized_views:   # 2 MVs (intentional replacements)
+        - { dataset: dm, name: mv_agent_weekly, replaces: agg_agent_weekly }
+        - { dataset: dm, name: mv_site_daily, replaces: agg_site_daily }
+      views:   # 15 VIEWs
+        - { dataset: dm, name: vw_org_hierarchy }
+        - { dataset: dm, name: vw_active_agents_ndv }
+        - { dataset: dm, name: vw_csat_rollup }
+        - { dataset: dm, name: vw_call_driver_regex }
+        - { dataset: dm, name: vw_repeat_contact_window }
+        - { dataset: dm, name: vw_billing_reconciliation }
+        - { dataset: dm, name: vw_agent_roster_current }
+        - { dataset: dm, name: vw_agent_scorecard }
+        - { dataset: dm, name: vw_attrition_risk }
+        - { dataset: dm, name: vw_queue_sla_attainment }
+        - { dataset: dm, name: vw_first_contact_resolution }
+        - { dataset: dm, name: vw_occupancy_utilization }
+        - { dataset: dm, name: vw_shrinkage_analysis }
+        - { dataset: dm, name: vw_program_margin }
+        - { dataset: dm, name: vw_client_executive_summary }
+
+  # -----------------------------------------------------------------------
+  # AC5 — FK type consistency (56 documented join paths)
+  # All FK→PK pairs must be same BQ type (INT64 ↔ INT64 or STRING ↔ STRING).
+  # -----------------------------------------------------------------------
+  - pattern: fk_consistency
+    id: fk-types
+    datasets: [staging, ods, dm]
+    join_paths:
+      # -- Surrogate key paths (agent_sk) --
+      - { fk_dataset: dm, fk_table: fact_interaction,     fk_column: agent_sk,     pk_dataset: dm, pk_table: dim_agent,     pk_column: agent_sk,     type: INT64 }
+      - { fk_dataset: dm, fk_table: fact_agent_activity,  fk_column: agent_sk,     pk_dataset: dm, pk_table: dim_agent,     pk_column: agent_sk,     type: INT64 }
+      - { fk_dataset: dm, fk_table: fact_csat_survey,     fk_column: agent_sk,     pk_dataset: dm, pk_table: dim_agent,     pk_column: agent_sk,     type: INT64 }
+      - { fk_dataset: dm, fk_table: fact_qa_evaluation,   fk_column: agent_sk,     pk_dataset: dm, pk_table: dim_agent,     pk_column: agent_sk,     type: INT64 }
+      - { fk_dataset: dm, fk_table: fact_adherence_daily, fk_column: agent_sk,     pk_dataset: dm, pk_table: dim_agent,     pk_column: agent_sk,     type: INT64 }
+      - { fk_dataset: dm, fk_table: agg_agent_daily,      fk_column: agent_sk,     pk_dataset: dm, pk_table: dim_agent,     pk_column: agent_sk,     type: INT64 }
+      # -- Surrogate key paths (client_sk) --
+      - { fk_dataset: dm, fk_table: fact_interaction,     fk_column: client_sk,    pk_dataset: dm, pk_table: dim_client,    pk_column: client_sk,    type: INT64 }
+      - { fk_dataset: dm, fk_table: fact_billing_line,    fk_column: client_sk,    pk_dataset: dm, pk_table: dim_client,    pk_column: client_sk,    type: INT64 }
+      - { fk_dataset: dm, fk_table: agg_billing_monthly,  fk_column: client_sk,    pk_dataset: dm, pk_table: dim_client,    pk_column: client_sk,    type: INT64 }
+      - { fk_dataset: dm, fk_table: agg_program_monthly,  fk_column: client_sk,    pk_dataset: dm, pk_table: dim_client,    pk_column: client_sk,    type: INT64 }
+      - { fk_dataset: dm, fk_table: agg_csat_rollup_monthly, fk_column: client_sk, pk_dataset: dm, pk_table: dim_client,    pk_column: client_sk,    type: INT64 }
+      # -- Surrogate key paths (program_sk) --
+      - { fk_dataset: dm, fk_table: fact_interaction,     fk_column: program_sk,   pk_dataset: dm, pk_table: dim_program,   pk_column: program_sk,   type: INT64 }
+      - { fk_dataset: dm, fk_table: fact_billing_line,    fk_column: program_sk,   pk_dataset: dm, pk_table: dim_program,   pk_column: program_sk,   type: INT64 }
+      - { fk_dataset: dm, fk_table: fact_csat_survey,     fk_column: program_sk,   pk_dataset: dm, pk_table: dim_program,   pk_column: program_sk,   type: INT64 }
+      - { fk_dataset: dm, fk_table: fact_ticket,          fk_column: program_sk,   pk_dataset: dm, pk_table: dim_program,   pk_column: program_sk,   type: INT64 }
+      - { fk_dataset: dm, fk_table: agg_program_monthly,  fk_column: program_sk,   pk_dataset: dm, pk_table: dim_program,   pk_column: program_sk,   type: INT64 }
+      # -- Surrogate key paths (queue_sk) --
+      - { fk_dataset: dm, fk_table: fact_interaction,     fk_column: queue_sk,     pk_dataset: dm, pk_table: dim_queue,     pk_column: queue_sk,     type: INT64 }
+      - { fk_dataset: dm, fk_table: fact_queue_interval,  fk_column: queue_sk,     pk_dataset: dm, pk_table: dim_queue,     pk_column: queue_sk,     type: INT64 }
+      - { fk_dataset: dm, fk_table: agg_queue_hourly,     fk_column: queue_sk,     pk_dataset: dm, pk_table: dim_queue,     pk_column: queue_sk,     type: INT64 }
+      # -- Natural key paths (agent_id and agent aliases) --
+      - { fk_dataset: staging, fk_table: stg_hr_employment_event, fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_hr_agent_skill,     fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_wfm_schedule,       fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_wfm_adherence_event, fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_wfm_timeoff_request, fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tel_call,           fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tel_call_segment,   fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tel_agent_state_event, fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tkt_ticket,         fk_column: opened_by_agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tkt_ticket,         fk_column: assigned_agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tkt_ticket_event,   fk_column: actor_agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_fin_timesheet_delta,  fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_fin_payroll_adj_delta, fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tkt_worklog_delta,    fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_hr_attrition_event_delta, fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_file_dialer_result,   fk_column: agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_wfm_shift_swap_delta, fk_column: requesting_agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_wfm_shift_swap_delta, fk_column: accepting_agent_id, pk_dataset: staging, pk_table: stg_hr_agent, pk_column: agent_id, type: INT64 }
+      # -- Natural key paths (client_id) --
+      - { fk_dataset: staging, fk_table: stg_crm_program,        fk_column: client_id, pk_dataset: staging, pk_table: stg_crm_client, pk_column: client_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_crm_contract,       fk_column: client_id, pk_dataset: staging, pk_table: stg_crm_client, pk_column: client_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_fin_invoice,         fk_column: client_id, pk_dataset: staging, pk_table: stg_crm_client, pk_column: client_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_crm_client_contact,  fk_column: client_id, pk_dataset: staging, pk_table: stg_crm_client, pk_column: client_id, type: INT64 }
+      # -- Natural key paths (program_id) --
+      - { fk_dataset: staging, fk_table: stg_crm_contract,        fk_column: program_id, pk_dataset: staging, pk_table: stg_crm_program, pk_column: program_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_crm_sla_target,      fk_column: program_id, pk_dataset: staging, pk_table: stg_crm_program, pk_column: program_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tel_call,            fk_column: program_id, pk_dataset: staging, pk_table: stg_crm_program, pk_column: program_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tel_queue,           fk_column: program_id, pk_dataset: staging, pk_table: stg_crm_program, pk_column: program_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tkt_ticket,          fk_column: program_id, pk_dataset: staging, pk_table: stg_crm_program, pk_column: program_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_fin_invoice,         fk_column: program_id, pk_dataset: staging, pk_table: stg_crm_program, pk_column: program_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_fin_rate_card,       fk_column: program_id, pk_dataset: staging, pk_table: stg_crm_program, pk_column: program_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_fin_timesheet_delta, fk_column: program_id, pk_dataset: staging, pk_table: stg_crm_program, pk_column: program_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_crm_sla_credit_delta, fk_column: program_id, pk_dataset: staging, pk_table: stg_crm_program, pk_column: program_id, type: INT64 }
+      # -- Natural key paths (queue_id) --
+      - { fk_dataset: staging, fk_table: stg_crm_sla_target,  fk_column: queue_id, pk_dataset: staging, pk_table: stg_tel_queue, pk_column: queue_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_wfm_forecast,    fk_column: queue_id, pk_dataset: staging, pk_table: stg_tel_queue, pk_column: queue_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tel_call,        fk_column: queue_id, pk_dataset: staging, pk_table: stg_tel_queue, pk_column: queue_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tel_callback_request_delta, fk_column: queue_id, pk_dataset: staging, pk_table: stg_tel_queue, pk_column: queue_id, type: INT64 }
+      # -- Natural key paths (other entities) --
+      - { fk_dataset: staging, fk_table: stg_crm_contract_line, fk_column: contract_id, pk_dataset: staging, pk_table: stg_crm_contract, pk_column: contract_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_fin_invoice_line,  fk_column: invoice_id,  pk_dataset: staging, pk_table: stg_fin_invoice,  pk_column: invoice_id,  type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_fin_invoice_line,  fk_column: contract_line_id, pk_dataset: staging, pk_table: stg_crm_contract_line, pk_column: contract_line_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tkt_ticket_event,  fk_column: ticket_id,  pk_dataset: staging, pk_table: stg_tkt_ticket,  pk_column: ticket_id,  type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tkt_ticket,        fk_column: category_id, pk_dataset: staging, pk_table: stg_tkt_category, pk_column: category_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tel_call_segment,  fk_column: call_id,    pk_dataset: staging, pk_table: stg_tel_call,    pk_column: call_id,    type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tel_callback_request_delta, fk_column: call_id, pk_dataset: staging, pk_table: stg_tel_call, pk_column: call_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_hr_agent_skill,    fk_column: skill_id,   pk_dataset: staging, pk_table: stg_hr_skill,    pk_column: skill_id,   type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_wfm_schedule,      fk_column: shift_id,   pk_dataset: staging, pk_table: stg_wfm_shift,   pk_column: shift_id,   type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_wfm_adherence_event, fk_column: schedule_id, pk_dataset: staging, pk_table: stg_wfm_schedule, pk_column: schedule_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_fin_rate_card_change_delta, fk_column: rate_card_id, pk_dataset: staging, pk_table: stg_fin_rate_card, pk_column: rate_card_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_wfm_shift_swap_delta, fk_column: schedule_id, pk_dataset: staging, pk_table: stg_wfm_schedule, pk_column: schedule_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_tkt_worklog_delta,  fk_column: ticket_id, pk_dataset: staging, pk_table: stg_tkt_ticket, pk_column: ticket_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_crm_sla_credit_delta, fk_column: sla_target_id, pk_dataset: staging, pk_table: stg_crm_sla_target, pk_column: sla_target_id, type: INT64 }
+      # -- Natural key paths (org_unit_id) --
+      - { fk_dataset: staging, fk_table: stg_hr_agent,            fk_column: org_unit_id, pk_dataset: staging, pk_table: stg_hr_org_unit, pk_column: org_unit_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_hr_org_unit,         fk_column: parent_unit_id, pk_dataset: staging, pk_table: stg_hr_org_unit, pk_column: org_unit_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_hr_employment_event, fk_column: from_org_unit_id, pk_dataset: staging, pk_table: stg_hr_org_unit, pk_column: org_unit_id, type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_hr_employment_event, fk_column: to_org_unit_id, pk_dataset: staging, pk_table: stg_hr_org_unit, pk_column: org_unit_id, type: INT64 }
+      # -- Natural key paths (STRING FKs) --
+      - { fk_dataset: staging, fk_table: stg_tel_call,           fk_column: disposition_code, pk_dataset: staging, pk_table: stg_tel_disposition_code, pk_column: disposition_code, type: STRING }
+      - { fk_dataset: staging, fk_table: stg_file_survey_csat,   fk_column: interaction_ref, pk_dataset: staging, pk_table: stg_file_interaction_export, pk_column: interaction_ref, type: STRING }
+      - { fk_dataset: staging, fk_table: stg_file_qa_forms,      fk_column: interaction_ref, pk_dataset: staging, pk_table: stg_file_interaction_export, pk_column: interaction_ref, type: STRING }
+      # -- Cross-layer paths --
+      - { fk_dataset: staging, fk_table: stg_crm_sla_target, fk_column: queue_id,   pk_dataset: dm, pk_table: dim_queue,   pk_column: queue_id,   type: INT64 }
+      - { fk_dataset: staging, fk_table: stg_fin_invoice,    fk_column: invoice_id, pk_dataset: ods, pk_table: ods_invoice_acid, pk_column: invoice_id, type: INT64 }
+      # -- Self-FK --
+      - { fk_dataset: ods, fk_table: ods_org_unit, fk_column: parent_unit_id, pk_dataset: ods, pk_table: ods_org_unit, pk_column: org_unit_id, type: INT64 }
+
+  # -----------------------------------------------------------------------
+  # AC6 — Queryability (SELECT * LIMIT 0 on all 115 objects + 3 tier queries)
+  # -----------------------------------------------------------------------
+  - pattern: queryability
+    id: queryability
+    select_star_limit_0:
+      # All 98 tables + 2 MVs + 15 views (115 total)
+      staging: [stg_crm_client, stg_crm_client_contact, stg_crm_program, stg_crm_contract, stg_crm_contract_line, stg_crm_sla_target, stg_hr_agent, stg_hr_org_unit, stg_hr_employment_event, stg_hr_skill, stg_hr_agent_skill, stg_wfm_shift, stg_wfm_schedule, stg_wfm_adherence_event, stg_wfm_forecast, stg_wfm_timeoff_request, stg_tel_call, stg_tel_call_segment, stg_tel_queue, stg_tel_agent_state_event, stg_tel_disposition_code, stg_tkt_ticket, stg_tkt_ticket_event, stg_tkt_category, stg_fin_invoice, stg_fin_invoice_line, stg_fin_rate_card, stg_fin_timesheet_delta, stg_fin_payroll_adj_delta, stg_crm_sla_credit_delta, stg_tel_callback_request_delta, stg_wfm_shift_swap_delta, stg_tkt_worklog_delta, stg_hr_attrition_event_delta, stg_fin_rate_card_change_delta, stg_file_interaction_export, stg_file_survey_csat, stg_file_qa_forms, stg_file_ivr_logs, stg_file_chat_transcripts, stg_file_roster, stg_file_telco_invoice, stg_file_dialer_result, stg_file_email_interaction, stg_file_speech_analytics]
+      ods: [ods_program, ods_contract, ods_contract_line, ods_org_unit, ods_queue, ods_schedule, ods_adherence_event, ods_call, ods_ivr_session, ods_chat_session, ods_email_interaction, ods_survey_response, ods_qa_evaluation, ods_interaction, ods_dialer_attempt, ods_timesheet, ods_payroll_adjustment, ods_sla_credit, ods_callback_request, ods_shift_swap, ods_ticket_worklog, ods_attrition_event, ods_rate_card, ods_agent_scd2, ods_agent_skill_scd2, ods_agent_assignment_scd2, ods_client_acid, ods_agent_acid, ods_ticket_acid, ods_invoice_acid]
+      dm: [dim_date, dim_agent, dim_client, dim_program, dim_queue, dim_site, dim_shift, dim_org, dim_disposition, fact_interaction, fact_agent_activity, fact_queue_interval, fact_csat_survey, fact_qa_evaluation, fact_billing_line, fact_adherence_daily, fact_ticket, fact_ivr_path, agg_agent_daily, agg_program_monthly, agg_queue_hourly, agg_csat_rollup_monthly, agg_billing_monthly, mv_agent_weekly, mv_site_daily, vw_org_hierarchy, vw_active_agents_ndv, vw_csat_rollup, vw_call_driver_regex, vw_repeat_contact_window, vw_billing_reconciliation, vw_agent_roster_current, vw_agent_scorecard, vw_attrition_risk, vw_queue_sla_attainment, vw_first_contact_resolution, vw_occupancy_utilization, vw_shrinkage_analysis, vw_program_margin, vw_client_executive_summary]
+    tier_queries:
+      - id: staging-tier
+        sql: >
+          SELECT c.client_code, p.program_code
+          FROM staging.stg_crm_client c
+          JOIN staging.stg_crm_program p ON p.client_id = c.client_id
+          LIMIT 1
+      - id: ods-tier
+        sql: >
+          SELECT o.contract_id, cl.unit_rate
+          FROM ods.ods_contract o
+          JOIN ods.ods_contract_line cl ON cl.contract_id = o.contract_id
+          LIMIT 1
+      - id: dm-tier
+        sql: >
+          SELECT f.interaction_id, a.full_name, f.handle_seconds
+          FROM dm.fact_interaction f
+          JOIN dm.dim_agent a ON a.agent_sk = f.agent_sk
+          WHERE f.date_key = 20260601
+          LIMIT 1
+
+  # -----------------------------------------------------------------------
+  # AC9 — Performance: scan reduction via clustering + partition filter
+  # Prerequisite: fixture data loaded from datagen/ into the 10 hot-path tables.
+  # -----------------------------------------------------------------------
+  - pattern: perf_scan
+    id: scan-reduction
+    hot_path_tables:
+      - { dataset: dm, table: fact_interaction,     cluster_filter: "agent_sk = 1",        partition_filter: "date_key = 20260601" }
+      - { dataset: dm, table: fact_agent_activity,  cluster_filter: "agent_sk = 1",        partition_filter: "date_key = 20260601" }
+      - { dataset: dm, table: fact_queue_interval,  cluster_filter: "queue_sk = 1",        partition_filter: "date_key = 20260601" }
+      - { dataset: dm, table: fact_csat_survey,     cluster_filter: "program_sk = 1",      partition_filter: "date_key = 20260601" }
+      - { dataset: dm, table: fact_billing_line,    cluster_filter: "client_sk = 1",       partition_filter: "period_month = '2026-06-01'" }
+      - { dataset: dm, table: fact_adherence_daily, cluster_filter: "agent_sk = 1",        partition_filter: "date_key = 20260601" }
+      - { dataset: dm, table: fact_ticket,          cluster_filter: "program_sk = 1",      partition_filter: "date_key = 20260601" }
+      - { dataset: dm, table: agg_agent_daily,      cluster_filter: "agent_sk = 1",        partition_filter: "date_key = 20260601" }
+      - { dataset: dm, table: agg_queue_hourly,     cluster_filter: "queue_sk = 1",        partition_filter: "date_key = 20260601" }
+      - { dataset: ods, table: ods_interaction,     cluster_filter: "agent_id = 1" }
+    require_partition_filter_tables:
+      - { dataset: dm, table: fact_interaction }
+      - { dataset: dm, table: fact_agent_activity }
+      - { dataset: dm, table: fact_queue_interval }
