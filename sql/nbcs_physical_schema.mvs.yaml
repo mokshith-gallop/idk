@@ -1,0 +1,1580 @@
+# =============================================================================
+# nbcs_physical_schema.mvs.yaml
+# Migration Validation Spec — BigQuery Physical Schema DDL
+#
+# Mode: build-and-verify (default)
+# Applies 10 DDL files to a clean build dataset, then verifies the built
+# result against source ground truth (manifests/tables.yaml + hive/ddl/*.hql).
+#
+# Objects: 115 (3 schemas + 98 tables + 2 MVs + 15 views)
+# Columns: 916 across 100 data objects (98 tables + 2 MVs)
+# =============================================================================
+
+name: nbcs_physical_schema
+
+connections:
+  source: { engine: impala }
+  target: { engine: bigquery }
+
+migration:
+  source_map:
+    - { source: "${SOURCE_DATABASE}.stg_crm_client", target: stg_crm_client }
+    - { source: "${SOURCE_DATABASE}.stg_crm_client_contact", target: stg_crm_client_contact }
+    - { source: "${SOURCE_DATABASE}.stg_crm_program", target: stg_crm_program }
+    - { source: "${SOURCE_DATABASE}.stg_crm_contract", target: stg_crm_contract }
+    - { source: "${SOURCE_DATABASE}.stg_crm_contract_line", target: stg_crm_contract_line }
+    - { source: "${SOURCE_DATABASE}.stg_crm_sla_target", target: stg_crm_sla_target }
+    - { source: "${SOURCE_DATABASE}.stg_hr_agent", target: stg_hr_agent }
+    - { source: "${SOURCE_DATABASE}.stg_hr_org_unit", target: stg_hr_org_unit }
+    - { source: "${SOURCE_DATABASE}.stg_hr_employment_event", target: stg_hr_employment_event }
+    - { source: "${SOURCE_DATABASE}.stg_hr_skill", target: stg_hr_skill }
+    - { source: "${SOURCE_DATABASE}.stg_hr_agent_skill", target: stg_hr_agent_skill }
+    - { source: "${SOURCE_DATABASE}.stg_wfm_shift", target: stg_wfm_shift }
+    - { source: "${SOURCE_DATABASE}.stg_wfm_schedule", target: stg_wfm_schedule }
+    - { source: "${SOURCE_DATABASE}.stg_wfm_adherence_event", target: stg_wfm_adherence_event }
+    - { source: "${SOURCE_DATABASE}.stg_wfm_forecast", target: stg_wfm_forecast }
+    - { source: "${SOURCE_DATABASE}.stg_wfm_timeoff_request", target: stg_wfm_timeoff_request }
+    - { source: "${SOURCE_DATABASE}.stg_tel_call", target: stg_tel_call }
+    - { source: "${SOURCE_DATABASE}.stg_tel_call_segment", target: stg_tel_call_segment }
+    - { source: "${SOURCE_DATABASE}.stg_tel_queue", target: stg_tel_queue }
+    - { source: "${SOURCE_DATABASE}.stg_tel_agent_state_event", target: stg_tel_agent_state_event }
+    - { source: "${SOURCE_DATABASE}.stg_tel_disposition_code", target: stg_tel_disposition_code }
+    - { source: "${SOURCE_DATABASE}.stg_tkt_ticket", target: stg_tkt_ticket }
+    - { source: "${SOURCE_DATABASE}.stg_tkt_ticket_event", target: stg_tkt_ticket_event }
+    - { source: "${SOURCE_DATABASE}.stg_tkt_category", target: stg_tkt_category }
+    - { source: "${SOURCE_DATABASE}.stg_fin_invoice", target: stg_fin_invoice }
+    - { source: "${SOURCE_DATABASE}.stg_fin_invoice_line", target: stg_fin_invoice_line }
+    - { source: "${SOURCE_DATABASE}.stg_fin_rate_card", target: stg_fin_rate_card }
+    - { source: "${SOURCE_DATABASE}.stg_fin_timesheet_delta", target: stg_fin_timesheet_delta }
+    - { source: "${SOURCE_DATABASE}.stg_fin_payroll_adj_delta", target: stg_fin_payroll_adj_delta }
+    - { source: "${SOURCE_DATABASE}.stg_crm_sla_credit_delta", target: stg_crm_sla_credit_delta }
+    - { source: "${SOURCE_DATABASE}.stg_tel_callback_request_delta", target: stg_tel_callback_request_delta }
+    - { source: "${SOURCE_DATABASE}.stg_wfm_shift_swap_delta", target: stg_wfm_shift_swap_delta }
+    - { source: "${SOURCE_DATABASE}.stg_tkt_worklog_delta", target: stg_tkt_worklog_delta }
+    - { source: "${SOURCE_DATABASE}.stg_hr_attrition_event_delta", target: stg_hr_attrition_event_delta }
+    - { source: "${SOURCE_DATABASE}.stg_fin_rate_card_change_delta", target: stg_fin_rate_card_change_delta }
+    - { source: "${SOURCE_DATABASE}.stg_file_interaction_export", target: stg_file_interaction_export }
+    - { source: "${SOURCE_DATABASE}.stg_file_survey_csat", target: stg_file_survey_csat }
+    - { source: "${SOURCE_DATABASE}.stg_file_qa_forms", target: stg_file_qa_forms }
+    - { source: "${SOURCE_DATABASE}.stg_file_ivr_logs", target: stg_file_ivr_logs }
+    - { source: "${SOURCE_DATABASE}.stg_file_chat_transcripts", target: stg_file_chat_transcripts }
+    - { source: "${SOURCE_DATABASE}.stg_file_roster", target: stg_file_roster }
+    - { source: "${SOURCE_DATABASE}.stg_file_telco_invoice", target: stg_file_telco_invoice }
+    - { source: "${SOURCE_DATABASE}.stg_file_dialer_result", target: stg_file_dialer_result }
+    - { source: "${SOURCE_DATABASE}.stg_file_email_interaction", target: stg_file_email_interaction }
+    - { source: "${SOURCE_DATABASE}.stg_file_speech_analytics", target: stg_file_speech_analytics }
+    - { source: "${SOURCE_DATABASE}.ods_program", target: ods_program }
+    - { source: "${SOURCE_DATABASE}.ods_contract", target: ods_contract }
+    - { source: "${SOURCE_DATABASE}.ods_contract_line", target: ods_contract_line }
+    - { source: "${SOURCE_DATABASE}.ods_org_unit", target: ods_org_unit }
+    - { source: "${SOURCE_DATABASE}.ods_queue", target: ods_queue }
+    - { source: "${SOURCE_DATABASE}.ods_schedule", target: ods_schedule }
+    - { source: "${SOURCE_DATABASE}.ods_adherence_event", target: ods_adherence_event }
+    - { source: "${SOURCE_DATABASE}.ods_call", target: ods_call }
+    - { source: "${SOURCE_DATABASE}.ods_ivr_session", target: ods_ivr_session }
+    - { source: "${SOURCE_DATABASE}.ods_chat_session", target: ods_chat_session }
+    - { source: "${SOURCE_DATABASE}.ods_email_interaction", target: ods_email_interaction }
+    - { source: "${SOURCE_DATABASE}.ods_survey_response", target: ods_survey_response }
+    - { source: "${SOURCE_DATABASE}.ods_qa_evaluation", target: ods_qa_evaluation }
+    - { source: "${SOURCE_DATABASE}.ods_interaction", target: ods_interaction }
+    - { source: "${SOURCE_DATABASE}.ods_dialer_attempt", target: ods_dialer_attempt }
+    - { source: "${SOURCE_DATABASE}.ods_timesheet", target: ods_timesheet }
+    - { source: "${SOURCE_DATABASE}.ods_payroll_adjustment", target: ods_payroll_adjustment }
+    - { source: "${SOURCE_DATABASE}.ods_sla_credit", target: ods_sla_credit }
+    - { source: "${SOURCE_DATABASE}.ods_callback_request", target: ods_callback_request }
+    - { source: "${SOURCE_DATABASE}.ods_shift_swap", target: ods_shift_swap }
+    - { source: "${SOURCE_DATABASE}.ods_ticket_worklog", target: ods_ticket_worklog }
+    - { source: "${SOURCE_DATABASE}.ods_attrition_event", target: ods_attrition_event }
+    - { source: "${SOURCE_DATABASE}.ods_rate_card", target: ods_rate_card }
+    - { source: "${SOURCE_DATABASE}.ods_agent_scd2", target: ods_agent_scd2 }
+    - { source: "${SOURCE_DATABASE}.ods_agent_skill_scd2", target: ods_agent_skill_scd2 }
+    - { source: "${SOURCE_DATABASE}.ods_agent_assignment_scd2", target: ods_agent_assignment_scd2 }
+    - { source: "${SOURCE_DATABASE}.ods_client_acid", target: ods_client_acid }
+    - { source: "${SOURCE_DATABASE}.ods_agent_acid", target: ods_agent_acid }
+    - { source: "${SOURCE_DATABASE}.ods_ticket_acid", target: ods_ticket_acid }
+    - { source: "${SOURCE_DATABASE}.ods_invoice_acid", target: ods_invoice_acid }
+    - { source: "${SOURCE_DATABASE}.dim_date", target: dim_date }
+    - { source: "${SOURCE_DATABASE}.dim_agent", target: dim_agent }
+    - { source: "${SOURCE_DATABASE}.dim_client", target: dim_client }
+    - { source: "${SOURCE_DATABASE}.dim_program", target: dim_program }
+    - { source: "${SOURCE_DATABASE}.dim_queue", target: dim_queue }
+    - { source: "${SOURCE_DATABASE}.dim_site", target: dim_site }
+    - { source: "${SOURCE_DATABASE}.dim_shift", target: dim_shift }
+    - { source: "${SOURCE_DATABASE}.dim_org", target: dim_org }
+    - { source: "${SOURCE_DATABASE}.dim_disposition", target: dim_disposition }
+    - { source: "${SOURCE_DATABASE}.fact_interaction", target: fact_interaction }
+    - { source: "${SOURCE_DATABASE}.fact_agent_activity", target: fact_agent_activity }
+    - { source: "${SOURCE_DATABASE}.fact_queue_interval", target: fact_queue_interval }
+    - { source: "${SOURCE_DATABASE}.fact_csat_survey", target: fact_csat_survey }
+    - { source: "${SOURCE_DATABASE}.fact_qa_evaluation", target: fact_qa_evaluation }
+    - { source: "${SOURCE_DATABASE}.fact_billing_line", target: fact_billing_line }
+    - { source: "${SOURCE_DATABASE}.fact_adherence_daily", target: fact_adherence_daily }
+    - { source: "${SOURCE_DATABASE}.fact_ticket", target: fact_ticket }
+    - { source: "${SOURCE_DATABASE}.fact_ivr_path", target: fact_ivr_path }
+    - { source: "${SOURCE_DATABASE}.agg_agent_daily", target: agg_agent_daily }
+    - { source: "${SOURCE_DATABASE}.agg_program_monthly", target: agg_program_monthly }
+    - { source: "${SOURCE_DATABASE}.agg_queue_hourly", target: agg_queue_hourly }
+    - { source: "${SOURCE_DATABASE}.agg_csat_rollup_monthly", target: agg_csat_rollup_monthly }
+    - { source: "${SOURCE_DATABASE}.agg_billing_monthly", target: agg_billing_monthly }
+    - { source: "${SOURCE_DATABASE}.agg_agent_weekly", target: mv_agent_weekly }
+    - { source: "${SOURCE_DATABASE}.agg_site_daily", target: mv_site_daily }
+
+  steps:
+    - { kind: ddl, sql: sql/ddl/01-create-datasets.sql }
+    - { kind: ddl, sql: sql/ddl/02-staging-sqoop-mirrors.sql }
+    - { kind: ddl, sql: sql/ddl/03-staging-delta-feeds.sql }
+    - { kind: ddl, sql: sql/ddl/04-staging-file-feeds.sql }
+    - { kind: ddl, sql: sql/ddl/05-ods-cleanse.sql }
+    - { kind: ddl, sql: sql/ddl/06-ods-delta-scd2.sql }
+    - { kind: ddl, sql: sql/ddl/07-ods-acid.sql }
+    - { kind: ddl, sql: sql/ddl/08-dm-tables.sql }
+    - { kind: ddl, sql: sql/ddl/08b-dm-materialized-views.sql }
+    - { kind: ddl, sql: sql/ddl/09-dm-views.sql }
+
+suites:
+  # ======================================================================
+  # staging dataset — schema conformance
+  # ======================================================================
+  - pattern: schema_conformance
+    id: schema-staging
+    target_dataset: "${BUILD_DATASET}_staging"
+    source_database: "${SOURCE_DATABASE}"
+    expect_table_count: 45
+    tables:
+      - table: stg_crm_client
+        source_table: stg_crm_client
+        expect_object_type: TABLE
+        columns:
+          - { name: client_id, type: INT64, source_type: BIGINT }
+          - { name: client_code, type: STRING, source_type: STRING }
+          - { name: client_name, type: STRING, source_type: STRING }
+          - { name: industry, type: STRING, source_type: STRING }
+          - { name: hq_country, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: created_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: updated_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_crm_client_contact
+        source_table: stg_crm_client_contact
+        expect_object_type: TABLE
+        columns:
+          - { name: contact_id, type: INT64, source_type: BIGINT }
+          - { name: client_id, type: INT64, source_type: BIGINT }
+          - { name: full_name, type: STRING, source_type: STRING }
+          - { name: email, type: STRING, source_type: STRING }
+          - { name: phone, type: STRING, source_type: STRING }
+          - { name: role, type: STRING, source_type: STRING }
+          - { name: is_primary, type: BOOL, source_type: BOOLEAN }
+          - { name: created_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_crm_program
+        source_table: stg_crm_program
+        expect_object_type: TABLE
+        columns:
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: client_id, type: INT64, source_type: BIGINT }
+          - { name: program_code, type: STRING, source_type: STRING }
+          - { name: program_name, type: STRING, source_type: STRING }
+          - { name: line_of_business, type: STRING, source_type: STRING }
+          - { name: channel_mix, type: STRING, source_type: STRING }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: go_live_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: updated_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_crm_contract
+        source_table: stg_crm_contract
+        expect_object_type: TABLE
+        columns:
+          - { name: contract_id, type: INT64, source_type: BIGINT }
+          - { name: client_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: contract_no, type: STRING, source_type: STRING }
+          - { name: start_dt, type: STRING, source_type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: end_dt, type: STRING, source_type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: billing_model, type: STRING, source_type: STRING }
+          - { name: currency, type: STRING, source_type: STRING }
+          - { name: signed_dt, type: STRING, source_type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_crm_contract_line
+        source_table: stg_crm_contract_line
+        expect_object_type: TABLE
+        columns:
+          - { name: contract_line_id, type: INT64, source_type: BIGINT }
+          - { name: contract_id, type: INT64, source_type: BIGINT }
+          - { name: line_no, type: INT64, source_type: INT }
+          - { name: service_code, type: STRING, source_type: STRING }
+          - { name: uom, type: STRING, source_type: STRING }
+          - { name: unit_rate, type: NUMERIC(12,4), scale: 4, source_type: DECIMAL(12,4) }
+          - { name: min_commit, type: NUMERIC(12,2), scale: 2, source_type: DECIMAL(12,2) }
+          - { name: effective_dt, type: STRING, source_type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_crm_sla_target
+        source_table: stg_crm_sla_target
+        expect_object_type: TABLE
+        columns:
+          - { name: sla_target_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: queue_id, type: INT64, source_type: BIGINT }
+          - { name: metric_code, type: STRING, source_type: STRING }
+          - { name: target_value, type: NUMERIC(10,4), scale: 4, source_type: DECIMAL(10,4) }
+          - { name: penalty_pct, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: effective_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_hr_agent
+        source_table: stg_hr_agent
+        expect_object_type: TABLE
+        columns:
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: employee_no, type: STRING, source_type: STRING }
+          - { name: first_name, type: STRING, source_type: STRING }
+          - { name: last_name, type: STRING, source_type: STRING }
+          - { name: email, type: STRING, source_type: STRING }
+          - { name: org_unit_id, type: INT64, source_type: BIGINT }
+          - { name: job_grade, type: STRING, source_type: STRING }
+          - { name: employment_type, type: STRING, source_type: STRING }
+          - { name: hire_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: term_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_hr_org_unit
+        source_table: stg_hr_org_unit
+        expect_object_type: TABLE
+        columns:
+          - { name: org_unit_id, type: INT64, source_type: BIGINT }
+          - { name: parent_unit_id, type: INT64, source_type: BIGINT }
+          - { name: unit_code, type: STRING, source_type: STRING }
+          - { name: unit_name, type: STRING, source_type: STRING }
+          - { name: unit_type, type: STRING, source_type: STRING }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: cost_center, type: STRING, source_type: STRING }
+          - { name: created_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_hr_employment_event
+        source_table: stg_hr_employment_event
+        expect_object_type: TABLE
+        columns:
+          - { name: event_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: event_type, type: STRING, source_type: STRING }
+          - { name: event_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: from_org_unit_id, type: INT64, source_type: BIGINT }
+          - { name: to_org_unit_id, type: INT64, source_type: BIGINT }
+          - { name: reason_code, type: STRING, source_type: STRING }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_hr_skill
+        source_table: stg_hr_skill
+        expect_object_type: TABLE
+        columns:
+          - { name: skill_id, type: INT64, source_type: BIGINT }
+          - { name: skill_code, type: STRING, source_type: STRING }
+          - { name: skill_name, type: STRING, source_type: STRING }
+          - { name: skill_family, type: STRING, source_type: STRING }
+          - { name: created_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_hr_agent_skill
+        source_table: stg_hr_agent_skill
+        expect_object_type: TABLE
+        columns:
+          - { name: agent_skill_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: skill_id, type: INT64, source_type: BIGINT }
+          - { name: proficiency, type: INT64, source_type: INT }
+          - { name: certified, type: BOOL, source_type: BOOLEAN }
+          - { name: effective_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: expiry_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_wfm_shift
+        source_table: stg_wfm_shift
+        expect_object_type: TABLE
+        columns:
+          - { name: shift_id, type: INT64, source_type: BIGINT }
+          - { name: shift_code, type: STRING, source_type: STRING }
+          - { name: shift_name, type: STRING, source_type: STRING }
+          - { name: start_hhmm, type: STRING, source_type: STRING }
+          - { name: end_hhmm, type: STRING, source_type: STRING }
+          - { name: overnight_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: created_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_wfm_schedule
+        source_table: stg_wfm_schedule
+        expect_object_type: TABLE
+        columns:
+          - { name: schedule_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: shift_id, type: INT64, source_type: BIGINT }
+          - { name: sched_date, type: STRING, source_type: STRING }
+          - { name: start_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: paid_minutes, type: INT64, source_type: INT }
+          - { name: activity_code, type: STRING, source_type: STRING }
+          - { name: load_date, type: DATE, source_type: STRING }
+          - { name: site_code, type: STRING, source_type: STRING }
+      - table: stg_wfm_adherence_event
+        source_table: stg_wfm_adherence_event
+        expect_object_type: TABLE
+        columns:
+          - { name: adherence_event_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: schedule_id, type: INT64, source_type: BIGINT }
+          - { name: exception_type, type: STRING, source_type: STRING }
+          - { name: start_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: approved_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_wfm_forecast
+        source_table: stg_wfm_forecast
+        expect_object_type: TABLE
+        columns:
+          - { name: forecast_id, type: INT64, source_type: BIGINT }
+          - { name: queue_id, type: INT64, source_type: BIGINT }
+          - { name: interval_start_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: forecast_volume, type: INT64, source_type: INT }
+          - { name: forecast_aht_sec, type: INT64, source_type: INT }
+          - { name: required_fte, type: NUMERIC(8,2), scale: 2, source_type: DECIMAL(8,2) }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_wfm_timeoff_request
+        source_table: stg_wfm_timeoff_request
+        expect_object_type: TABLE
+        columns:
+          - { name: timeoff_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: request_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: start_date, type: STRING, source_type: STRING }
+          - { name: end_date, type: STRING, source_type: STRING }
+          - { name: timeoff_type, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_tel_call
+        source_table: stg_tel_call
+        expect_object_type: TABLE
+        columns:
+          - { name: call_id, type: INT64, source_type: BIGINT }
+          - { name: ani, type: STRING, source_type: STRING }
+          - { name: dnis, type: STRING, source_type: STRING }
+          - { name: queue_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: start_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: answer_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: disposition_code, type: STRING, source_type: STRING }
+          - { name: direction, type: STRING, source_type: STRING }
+          - { name: recording_id, type: STRING, source_type: STRING }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_tel_call_segment
+        source_table: stg_tel_call_segment
+        expect_object_type: TABLE
+        columns:
+          - { name: segment_id, type: INT64, source_type: BIGINT }
+          - { name: call_id, type: INT64, source_type: BIGINT }
+          - { name: segment_no, type: INT64, source_type: INT }
+          - { name: segment_type, type: STRING, source_type: STRING }
+          - { name: start_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_tel_queue
+        source_table: stg_tel_queue
+        expect_object_type: TABLE
+        columns:
+          - { name: queue_id, type: INT64, source_type: BIGINT }
+          - { name: queue_code, type: STRING, source_type: STRING }
+          - { name: queue_name, type: STRING, source_type: STRING }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: media_type, type: STRING, source_type: STRING }
+          - { name: priority, type: INT64, source_type: INT }
+          - { name: created_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_tel_agent_state_event
+        source_table: stg_tel_agent_state_event
+        expect_object_type: TABLE
+        columns:
+          - { name: state_event_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: state_code, type: STRING, source_type: STRING }
+          - { name: start_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: reason_code, type: STRING, source_type: STRING }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_tel_disposition_code
+        source_table: stg_tel_disposition_code
+        expect_object_type: TABLE
+        columns:
+          - { name: disposition_code, type: STRING, source_type: STRING }
+          - { name: disposition_desc, type: STRING, source_type: STRING }
+          - { name: category, type: STRING, source_type: STRING }
+          - { name: billable_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: created_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_tkt_ticket
+        source_table: stg_tkt_ticket
+        expect_object_type: TABLE
+        columns:
+          - { name: ticket_id, type: INT64, source_type: BIGINT }
+          - { name: ticket_no, type: STRING, source_type: STRING }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: category_id, type: INT64, source_type: BIGINT }
+          - { name: opened_by_agent_id, type: INT64, source_type: BIGINT }
+          - { name: assigned_agent_id, type: INT64, source_type: BIGINT }
+          - { name: interaction_ref, type: STRING, source_type: STRING }
+          - { name: priority, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: created_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: updated_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_tkt_ticket_event
+        source_table: stg_tkt_ticket_event
+        expect_object_type: TABLE
+        columns:
+          - { name: ticket_event_id, type: INT64, source_type: BIGINT }
+          - { name: ticket_id, type: INT64, source_type: BIGINT }
+          - { name: event_type, type: STRING, source_type: STRING }
+          - { name: event_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: actor_agent_id, type: INT64, source_type: BIGINT }
+          - { name: old_value, type: STRING, source_type: STRING }
+          - { name: new_value, type: STRING, source_type: STRING }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_tkt_category
+        source_table: stg_tkt_category
+        expect_object_type: TABLE
+        columns:
+          - { name: category_id, type: INT64, source_type: BIGINT }
+          - { name: category_code, type: STRING, source_type: STRING }
+          - { name: category_name, type: STRING, source_type: STRING }
+          - { name: sla_hours, type: INT64, source_type: INT }
+          - { name: created_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_fin_invoice
+        source_table: stg_fin_invoice
+        expect_object_type: TABLE
+        columns:
+          - { name: invoice_id, type: INT64, source_type: BIGINT }
+          - { name: invoice_no, type: STRING, source_type: STRING }
+          - { name: client_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: period_month, type: STRING, source_type: STRING }
+          - { name: issued_ts_sec, type: INT64, source_type: BIGINT, description: "!! name says seconds, VALUES ARE MILLIS !!" }
+          - { name: due_ts_sec, type: INT64, source_type: BIGINT, description: "!! name says seconds, VALUES ARE MILLIS !!" }
+          - { name: currency, type: STRING, source_type: STRING }
+          - { name: total_amount, type: NUMERIC(14,2), scale: 2, source_type: DECIMAL(14,2) }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_fin_invoice_line
+        source_table: stg_fin_invoice_line
+        expect_object_type: TABLE
+        columns:
+          - { name: invoice_line_id, type: INT64, source_type: BIGINT }
+          - { name: invoice_id, type: INT64, source_type: BIGINT }
+          - { name: contract_line_id, type: INT64, source_type: BIGINT }
+          - { name: qty, type: NUMERIC(12,2), scale: 2, source_type: DECIMAL(12,2) }
+          - { name: unit_rate, type: NUMERIC(12,4), scale: 4, source_type: DECIMAL(12,4) }
+          - { name: line_amount, type: NUMERIC(14,2), scale: 2, source_type: DECIMAL(14,2) }
+          - { name: adjustment_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: created_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_fin_rate_card
+        source_table: stg_fin_rate_card
+        expect_object_type: TABLE
+        columns:
+          - { name: rate_card_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: service_code, type: STRING, source_type: STRING }
+          - { name: rate, type: NUMERIC(12,4), scale: 4, source_type: DECIMAL(12,4) }
+          - { name: currency, type: STRING, source_type: STRING }
+          - { name: effective_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: expiry_ts, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE, source_type: STRING }
+      - table: stg_fin_timesheet_delta
+        source_table: stg_fin_timesheet_delta
+        expect_object_type: TABLE
+        columns:
+          - { name: timesheet_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: work_date, type: STRING, source_type: STRING }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: billable_minutes, type: INT64, source_type: INT }
+          - { name: nonbillable_minutes, type: INT64, source_type: INT }
+          - { name: approved_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: op, type: STRING, source_type: STRING }
+          - { name: change_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING, source_type: STRING }
+      - table: stg_fin_payroll_adj_delta
+        source_table: stg_fin_payroll_adj_delta
+        expect_object_type: TABLE
+        columns:
+          - { name: adjustment_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: period_month, type: STRING, source_type: STRING }
+          - { name: adj_type, type: STRING, source_type: STRING }
+          - { name: amount, type: NUMERIC(12,2), scale: 2, source_type: DECIMAL(12,2) }
+          - { name: op, type: STRING, source_type: STRING }
+          - { name: change_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING, source_type: STRING }
+      - table: stg_crm_sla_credit_delta
+        source_table: stg_crm_sla_credit_delta
+        expect_object_type: TABLE
+        columns:
+          - { name: sla_credit_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: sla_target_id, type: INT64, source_type: BIGINT }
+          - { name: period_month, type: STRING, source_type: STRING }
+          - { name: credit_amount, type: NUMERIC(12,2), scale: 2, source_type: DECIMAL(12,2) }
+          - { name: reason, type: STRING, source_type: STRING }
+          - { name: op, type: STRING, source_type: STRING }
+          - { name: change_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING, source_type: STRING }
+      - table: stg_tel_callback_request_delta
+        source_table: stg_tel_callback_request_delta
+        expect_object_type: TABLE
+        columns:
+          - { name: callback_id, type: INT64, source_type: BIGINT }
+          - { name: call_id, type: INT64, source_type: BIGINT }
+          - { name: queue_id, type: INT64, source_type: BIGINT }
+          - { name: requested_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: scheduled_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: completed_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: op, type: STRING, source_type: STRING }
+          - { name: change_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING, source_type: STRING }
+      - table: stg_wfm_shift_swap_delta
+        source_table: stg_wfm_shift_swap_delta
+        expect_object_type: TABLE
+        columns:
+          - { name: swap_id, type: INT64, source_type: BIGINT }
+          - { name: requesting_agent_id, type: INT64, source_type: BIGINT }
+          - { name: accepting_agent_id, type: INT64, source_type: BIGINT }
+          - { name: schedule_id, type: INT64, source_type: BIGINT }
+          - { name: swap_date, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: op, type: STRING, source_type: STRING }
+          - { name: change_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING, source_type: STRING }
+      - table: stg_tkt_worklog_delta
+        source_table: stg_tkt_worklog_delta
+        expect_object_type: TABLE
+        columns:
+          - { name: worklog_id, type: INT64, source_type: BIGINT }
+          - { name: ticket_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: minutes_logged, type: INT64, source_type: INT }
+          - { name: log_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: note, type: STRING, source_type: STRING }
+          - { name: op, type: STRING, source_type: STRING }
+          - { name: change_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING, source_type: STRING }
+      - table: stg_hr_attrition_event_delta
+        source_table: stg_hr_attrition_event_delta
+        expect_object_type: TABLE
+        columns:
+          - { name: attrition_event_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: notice_epoch, type: INT64, source_type: BIGINT, description: "epoch SECONDS (legacy)" }
+          - { name: last_day, type: STRING, source_type: STRING }
+          - { name: attrition_type, type: STRING, source_type: STRING }
+          - { name: reason_code, type: STRING, source_type: STRING }
+          - { name: regrettable_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: op, type: STRING, source_type: STRING }
+          - { name: change_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING, source_type: STRING }
+      - table: stg_fin_rate_card_change_delta
+        source_table: stg_fin_rate_card_change_delta
+        expect_object_type: TABLE
+        columns:
+          - { name: rate_change_id, type: INT64, source_type: BIGINT }
+          - { name: rate_card_id, type: INT64, source_type: BIGINT }
+          - { name: old_rate, type: NUMERIC(12,4), scale: 4, source_type: DECIMAL(12,4) }
+          - { name: new_rate, type: NUMERIC(12,4), scale: 4, source_type: DECIMAL(12,4) }
+          - { name: change_reason, type: STRING, source_type: STRING }
+          - { name: op, type: STRING, source_type: STRING }
+          - { name: change_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING, source_type: STRING }
+      - table: stg_file_interaction_export
+        source_table: stg_file_interaction_export
+        expect_object_type: TABLE
+        partition_by: "feed_date"
+        cluster_by: [client_code]
+        table_options:
+          partition_expiration_days: 365
+        columns:
+          - { name: interaction_ref, type: STRING, source_type: STRING }
+          - { name: channel, type: STRING, source_type: STRING }
+          - { name: client_interaction_id, type: STRING, source_type: STRING }
+          - { name: agent_email, type: STRING, source_type: STRING }
+          - { name: start_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: end_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: outcome, type: STRING, source_type: STRING }
+          - { name: customer_ref, type: STRING, source_type: STRING }
+          - { name: feed_date, type: DATE, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+      - table: stg_file_survey_csat
+        source_table: stg_file_survey_csat
+        expect_object_type: TABLE
+        partition_by: "feed_date"
+        cluster_by: [client_code]
+        table_options:
+          partition_expiration_days: 365
+        columns:
+          - { name: survey_id, type: STRING, source_type: STRING }
+          - { name: interaction_ref, type: STRING, source_type: STRING }
+          - { name: survey_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: csat_score, type: INT64, source_type: INT }
+          - { name: nps_score, type: INT64, source_type: INT }
+          - { name: fcr_claimed, type: BOOL, source_type: BOOLEAN }
+          - { name: verbatim, type: STRING, source_type: STRING }
+          - { name: feed_date, type: DATE, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+      - table: stg_file_qa_forms
+        source_table: stg_file_qa_forms
+        expect_object_type: TABLE
+        partition_by: "feed_date"
+        cluster_by: [client_code]
+        table_options:
+          partition_expiration_days: 365
+        columns:
+          - { name: qa_form_id, type: STRING, source_type: STRING }
+          - { name: interaction_ref, type: STRING, source_type: STRING }
+          - { name: evaluator_email, type: STRING, source_type: STRING }
+          - { name: evaluated_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: form_version, type: STRING, source_type: STRING }
+          - { name: sections, type: ARRAY<STRUCT<section_code STRING, max_points INT64, scored_points INT64>>, source_type: ARRAY<STRUCT<section_code:STRING,max_points:INT,scored_points:INT>> }
+          - { name: auto_fail, type: BOOL, source_type: BOOLEAN }
+          - { name: overall_pct, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: feed_date, type: DATE, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+      - table: stg_file_ivr_logs
+        source_table: stg_file_ivr_logs
+        expect_object_type: TABLE
+        partition_by: "feed_date"
+        cluster_by: [client_code]
+        table_options:
+          partition_expiration_days: 365
+        columns:
+          - { name: event_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: session_ref, type: STRING, source_type: STRING }
+          - { name: menu_path, type: STRING, source_type: STRING }
+          - { name: key_pressed, type: STRING, source_type: STRING }
+          - { name: raw_tail, type: STRING, source_type: STRING }
+          - { name: feed_date, type: DATE, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+      - table: stg_file_chat_transcripts
+        source_table: stg_file_chat_transcripts
+        expect_object_type: TABLE
+        partition_by: "feed_date"
+        cluster_by: [client_code]
+        table_options:
+          partition_expiration_days: 365
+        columns:
+          - { name: chat_ref, type: STRING, source_type: STRING }
+          - { name: queue_code, type: STRING, source_type: STRING }
+          - { name: agent_email, type: STRING, source_type: STRING }
+          - { name: started_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: ended_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: messages, type: ARRAY<STRUCT<sender STRING, ts_ms INT64, text STRING>>, source_type: ARRAY<STRUCT<sender:STRING,ts_ms:BIGINT,text:STRING>> }
+          - { name: metadata, type: JSON, source_type: MAP<STRING,STRING> }
+          - { name: feed_date, type: DATE, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+      - table: stg_file_roster
+        source_table: stg_file_roster
+        expect_object_type: TABLE
+        partition_by: "feed_date"
+        cluster_by: [client_code]
+        table_options:
+          partition_expiration_days: 365
+        columns:
+          - { name: employee_no, type: STRING, source_type: STRING }
+          - { name: agent_email, type: STRING, source_type: STRING }
+          - { name: client_login, type: STRING, source_type: STRING }
+          - { name: role_on_program, type: STRING, source_type: STRING }
+          - { name: active_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: as_of_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: feed_date, type: DATE, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+      - table: stg_file_telco_invoice
+        source_table: stg_file_telco_invoice
+        expect_object_type: TABLE
+        partition_by: "feed_date"
+        cluster_by: [client_code]
+        table_options:
+          partition_expiration_days: 365
+        columns:
+          - { name: telco_invoice_id, type: STRING, source_type: STRING }
+          - { name: carrier, type: STRING, source_type: STRING }
+          - { name: circuit_id, type: STRING, source_type: STRING }
+          - { name: usage_minutes, type: INT64, source_type: BIGINT }
+          - { name: charge_amount, type: NUMERIC(12,2), scale: 2, source_type: DECIMAL(12,2) }
+          - { name: bill_period, type: STRING, source_type: STRING }
+          - { name: billed_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: feed_date, type: DATE, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+      - table: stg_file_dialer_result
+        source_table: stg_file_dialer_result
+        expect_object_type: TABLE
+        partition_by: "feed_date"
+        cluster_by: [client_code]
+        table_options:
+          partition_expiration_days: 365
+        columns:
+          - { name: attempt_id, type: STRING, source_type: STRING }
+          - { name: campaign_code, type: STRING, source_type: STRING }
+          - { name: phone_hash, type: STRING, source_type: STRING }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: attempt_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: result_code, type: STRING, source_type: STRING }
+          - { name: talk_seconds, type: INT64, source_type: INT }
+          - { name: feed_date, type: DATE, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+      - table: stg_file_email_interaction
+        source_table: stg_file_email_interaction
+        expect_object_type: TABLE
+        partition_by: "feed_date"
+        cluster_by: [client_code]
+        table_options:
+          partition_expiration_days: 365
+        columns:
+          - { name: email_ref, type: STRING, source_type: STRING }
+          - { name: mailbox, type: STRING, source_type: STRING }
+          - { name: agent_email, type: STRING, source_type: STRING }
+          - { name: received_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: first_reply_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: resolved_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: subject_category, type: STRING, source_type: STRING }
+          - { name: feed_date, type: DATE, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+      - table: stg_file_speech_analytics
+        source_table: stg_file_speech_analytics
+        expect_object_type: TABLE
+        partition_by: "feed_date"
+        cluster_by: [client_code]
+        table_options:
+          partition_expiration_days: 365
+        columns:
+          - { name: recording_id, type: STRING, source_type: STRING }
+          - { name: call_ref, type: STRING, source_type: STRING }
+          - { name: analyzed_ms, type: INT64, source_type: BIGINT, description: "epoch MILLISECONDS (legacy)" }
+          - { name: sentiment_score, type: FLOAT64, source_type: DOUBLE }
+          - { name: silence_pct, type: FLOAT64, source_type: DOUBLE }
+          - { name: talk_over_count, type: INT64, source_type: INT }
+          - { name: keywords, type: ARRAY<STRING>, source_type: ARRAY<STRING> }
+          - { name: feed_date, type: DATE, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+  # ======================================================================
+  # ods dataset — schema conformance
+  # ======================================================================
+  - pattern: schema_conformance
+    id: schema-ods
+    target_dataset: "${BUILD_DATASET}_ods"
+    source_database: "${SOURCE_DATABASE}"
+    expect_table_count: 30
+    tables:
+      - table: ods_program
+        source_table: ods_program
+        expect_object_type: TABLE
+        columns:
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: client_id, type: INT64, source_type: BIGINT }
+          - { name: program_code, type: STRING, source_type: STRING }
+          - { name: program_name, type: STRING, source_type: STRING }
+          - { name: line_of_business, type: STRING, source_type: STRING }
+          - { name: channel_mix, type: STRING, source_type: STRING }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: go_live_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: updated_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: snapshot_date, type: DATE, source_type: STRING }
+      - table: ods_contract
+        source_table: ods_contract
+        expect_object_type: TABLE
+        columns:
+          - { name: contract_id, type: INT64, source_type: BIGINT }
+          - { name: client_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: contract_no, type: STRING, source_type: STRING }
+          - { name: start_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: billing_model, type: STRING, source_type: STRING }
+          - { name: currency, type: STRING, source_type: STRING }
+          - { name: signed_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: snapshot_date, type: DATE, source_type: STRING }
+      - table: ods_contract_line
+        source_table: ods_contract_line
+        expect_object_type: TABLE
+        columns:
+          - { name: contract_line_id, type: INT64, source_type: BIGINT }
+          - { name: contract_id, type: INT64, source_type: BIGINT }
+          - { name: line_no, type: INT64, source_type: INT }
+          - { name: service_code, type: STRING, source_type: STRING }
+          - { name: uom, type: STRING, source_type: STRING }
+          - { name: unit_rate, type: NUMERIC(12,4), scale: 4, source_type: DECIMAL(12,4) }
+          - { name: min_commit, type: NUMERIC(12,2), scale: 2, source_type: DECIMAL(12,2) }
+          - { name: effective_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: snapshot_date, type: DATE, source_type: STRING }
+      - table: ods_org_unit
+        source_table: ods_org_unit
+        expect_object_type: TABLE
+        columns:
+          - { name: org_unit_id, type: INT64, source_type: BIGINT }
+          - { name: parent_unit_id, type: INT64, source_type: BIGINT }
+          - { name: unit_code, type: STRING, source_type: STRING }
+          - { name: unit_name, type: STRING, source_type: STRING }
+          - { name: unit_type, type: STRING, source_type: STRING }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: cost_center, type: STRING, source_type: STRING }
+          - { name: created_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: snapshot_date, type: DATE, source_type: STRING }
+      - table: ods_queue
+        source_table: ods_queue
+        expect_object_type: TABLE
+        columns:
+          - { name: queue_id, type: INT64, source_type: BIGINT }
+          - { name: queue_code, type: STRING, source_type: STRING }
+          - { name: queue_name, type: STRING, source_type: STRING }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: media_type, type: STRING, source_type: STRING }
+          - { name: priority, type: INT64, source_type: INT }
+          - { name: created_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: snapshot_date, type: DATE, source_type: STRING }
+      - table: ods_schedule
+        source_table: ods_schedule
+        expect_object_type: TABLE
+        columns:
+          - { name: schedule_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: shift_id, type: INT64, source_type: BIGINT }
+          - { name: shift_code, type: STRING, source_type: STRING }
+          - { name: start_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: paid_minutes, type: INT64, source_type: INT }
+          - { name: activity_code, type: STRING, source_type: STRING }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: sched_date, type: DATE, source_type: STRING }
+      - table: ods_adherence_event
+        source_table: ods_adherence_event
+        expect_object_type: TABLE
+        columns:
+          - { name: adherence_event_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: schedule_id, type: INT64, source_type: BIGINT }
+          - { name: exception_type, type: STRING, source_type: STRING }
+          - { name: start_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: exception_minutes, type: INT64, source_type: INT }
+          - { name: approved_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: event_date, type: DATE, source_type: STRING }
+      - table: ods_call
+        source_table: ods_call
+        expect_object_type: TABLE
+        columns:
+          - { name: call_id, type: INT64, source_type: BIGINT }
+          - { name: queue_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: direction, type: STRING, source_type: STRING }
+          - { name: start_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: answer_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: ring_seconds, type: INT64, source_type: INT }
+          - { name: talk_seconds, type: INT64, source_type: INT }
+          - { name: hold_seconds, type: INT64, source_type: INT }
+          - { name: acw_seconds, type: INT64, source_type: INT }
+          - { name: abandoned_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: disposition_code, type: STRING, source_type: STRING }
+          - { name: recording_id, type: STRING, source_type: STRING }
+          - { name: call_date, type: DATE, source_type: STRING }
+      - table: ods_ivr_session
+        source_table: ods_ivr_session
+        expect_object_type: TABLE
+        columns:
+          - { name: session_ref, type: STRING, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+          - { name: first_event_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: last_event_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: menu_path_full, type: STRING, source_type: STRING }
+          - { name: hops, type: INT64, source_type: INT }
+          - { name: contained_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: exit_key, type: STRING, source_type: STRING }
+          - { name: event_date, type: DATE, source_type: STRING }
+      - table: ods_chat_session
+        source_table: ods_chat_session
+        expect_object_type: TABLE
+        columns:
+          - { name: chat_ref, type: STRING, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+          - { name: queue_code, type: STRING, source_type: STRING }
+          - { name: agent_email, type: STRING, source_type: STRING }
+          - { name: started_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: ended_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: message_count, type: INT64, source_type: INT }
+          - { name: agent_message_count, type: INT64, source_type: INT }
+          - { name: customer_message_count, type: INT64, source_type: INT }
+          - { name: first_response_seconds, type: INT64, source_type: INT }
+          - { name: event_date, type: DATE, source_type: STRING }
+      - table: ods_email_interaction
+        source_table: ods_email_interaction
+        expect_object_type: TABLE
+        columns:
+          - { name: email_ref, type: STRING, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+          - { name: mailbox, type: STRING, source_type: STRING }
+          - { name: agent_email, type: STRING, source_type: STRING }
+          - { name: received_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: first_reply_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: resolved_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: reply_sla_minutes, type: INT64, source_type: INT }
+          - { name: subject_category, type: STRING, source_type: STRING }
+          - { name: event_date, type: DATE, source_type: STRING }
+      - table: ods_survey_response
+        source_table: ods_survey_response
+        expect_object_type: TABLE
+        columns:
+          - { name: survey_id, type: STRING, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+          - { name: interaction_ref, type: STRING, source_type: STRING }
+          - { name: survey_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: csat_score, type: INT64, source_type: INT }
+          - { name: nps_score, type: INT64, source_type: INT }
+          - { name: fcr_claimed, type: BOOL, source_type: BOOLEAN }
+          - { name: verbatim, type: STRING, source_type: STRING }
+          - { name: event_date, type: DATE, source_type: STRING }
+      - table: ods_qa_evaluation
+        source_table: ods_qa_evaluation
+        expect_object_type: TABLE
+        columns:
+          - { name: qa_form_id, type: STRING, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+          - { name: interaction_ref, type: STRING, source_type: STRING }
+          - { name: evaluator_email, type: STRING, source_type: STRING }
+          - { name: evaluated_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: form_version, type: STRING, source_type: STRING }
+          - { name: section_count, type: INT64, source_type: INT }
+          - { name: scored_points, type: INT64, source_type: INT }
+          - { name: max_points, type: INT64, source_type: INT }
+          - { name: auto_fail, type: BOOL, source_type: BOOLEAN }
+          - { name: overall_pct, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: event_date, type: DATE, source_type: STRING }
+      - table: ods_interaction
+        source_table: ods_interaction
+        expect_object_type: TABLE
+        cluster_by: [agent_id, client_code]
+        columns:
+          - { name: interaction_id, type: STRING, source_type: STRING }
+          - { name: channel, type: STRING, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: queue_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: customer_ref, type: STRING, source_type: STRING }
+          - { name: start_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: handle_seconds, type: INT64, source_type: INT }
+          - { name: resolved_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: source_system, type: STRING, source_type: STRING }
+          - { name: event_date, type: DATE, source_type: STRING }
+      - table: ods_dialer_attempt
+        source_table: ods_dialer_attempt
+        expect_object_type: TABLE
+        columns:
+          - { name: attempt_id, type: STRING, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+          - { name: campaign_code, type: STRING, source_type: STRING }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: attempt_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: result_code, type: STRING, source_type: STRING }
+          - { name: connected_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: talk_seconds, type: INT64, source_type: INT }
+          - { name: event_date, type: DATE, source_type: STRING }
+      - table: ods_timesheet
+        source_table: ods_timesheet
+        expect_object_type: TABLE
+        columns:
+          - { name: timesheet_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: work_date, type: STRING, source_type: STRING }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: billable_minutes, type: INT64, source_type: INT }
+          - { name: nonbillable_minutes, type: INT64, source_type: INT }
+          - { name: approved_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: last_change_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: work_month, type: DATE, source_type: STRING }
+      - table: ods_payroll_adjustment
+        source_table: ods_payroll_adjustment
+        expect_object_type: TABLE
+        columns:
+          - { name: adjustment_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: adj_type, type: STRING, source_type: STRING }
+          - { name: amount, type: NUMERIC(12,2), scale: 2, source_type: DECIMAL(12,2) }
+          - { name: last_change_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: period_month, type: DATE, source_type: STRING }
+      - table: ods_sla_credit
+        source_table: ods_sla_credit
+        expect_object_type: TABLE
+        columns:
+          - { name: sla_credit_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: sla_target_id, type: INT64, source_type: BIGINT }
+          - { name: credit_amount, type: NUMERIC(12,2), scale: 2, source_type: DECIMAL(12,2) }
+          - { name: reason, type: STRING, source_type: STRING }
+          - { name: last_change_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: period_month, type: DATE, source_type: STRING }
+      - table: ods_callback_request
+        source_table: ods_callback_request
+        expect_object_type: TABLE
+        columns:
+          - { name: callback_id, type: INT64, source_type: BIGINT }
+          - { name: call_id, type: INT64, source_type: BIGINT }
+          - { name: queue_id, type: INT64, source_type: BIGINT }
+          - { name: requested_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: scheduled_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: completed_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: last_change_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: event_date, type: DATE, source_type: STRING }
+      - table: ods_shift_swap
+        source_table: ods_shift_swap
+        expect_object_type: TABLE
+        columns:
+          - { name: swap_id, type: INT64, source_type: BIGINT }
+          - { name: requesting_agent_id, type: INT64, source_type: BIGINT }
+          - { name: accepting_agent_id, type: INT64, source_type: BIGINT }
+          - { name: schedule_id, type: INT64, source_type: BIGINT }
+          - { name: swap_date, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: last_change_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: swap_month, type: DATE, source_type: STRING }
+      - table: ods_ticket_worklog
+        source_table: ods_ticket_worklog
+        expect_object_type: TABLE
+        columns:
+          - { name: worklog_id, type: INT64, source_type: BIGINT }
+          - { name: ticket_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: minutes_logged, type: INT64, source_type: INT }
+          - { name: log_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: note, type: STRING, source_type: STRING }
+          - { name: last_change_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: event_date, type: DATE, source_type: STRING }
+      - table: ods_attrition_event
+        source_table: ods_attrition_event
+        expect_object_type: TABLE
+        columns:
+          - { name: attrition_event_id, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: notice_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: last_day, type: STRING, source_type: STRING }
+          - { name: attrition_type, type: STRING, source_type: STRING }
+          - { name: reason_code, type: STRING, source_type: STRING }
+          - { name: regrettable_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: last_change_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: event_month, type: DATE, source_type: STRING }
+      - table: ods_rate_card
+        source_table: ods_rate_card
+        expect_object_type: TABLE
+        columns:
+          - { name: rate_card_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: service_code, type: STRING, source_type: STRING }
+          - { name: rate, type: NUMERIC(12,4), scale: 4, source_type: DECIMAL(12,4) }
+          - { name: currency, type: STRING, source_type: STRING }
+          - { name: effective_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: expiry_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: last_change_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: snapshot_date, type: DATE, source_type: STRING }
+      - table: ods_agent_scd2
+        source_table: ods_agent_scd2
+        expect_object_type: TABLE
+        columns:
+          - { name: agent_history_id, type: STRING, source_type: STRING }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: employee_no, type: STRING, source_type: STRING }
+          - { name: org_unit_id, type: INT64, source_type: BIGINT }
+          - { name: job_grade, type: STRING, source_type: STRING }
+          - { name: employment_type, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: eff_from_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: eff_to_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: is_current, type: BOOL, source_type: BOOLEAN }
+          - { name: eff_from_year, type: INT64, source_type: INT }
+      - table: ods_agent_skill_scd2
+        source_table: ods_agent_skill_scd2
+        expect_object_type: TABLE
+        columns:
+          - { name: agent_skill_history_id, type: STRING, source_type: STRING }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: skill_id, type: INT64, source_type: BIGINT }
+          - { name: skill_code, type: STRING, source_type: STRING }
+          - { name: proficiency, type: INT64, source_type: INT }
+          - { name: certified, type: BOOL, source_type: BOOLEAN }
+          - { name: eff_from_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: eff_to_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: is_current, type: BOOL, source_type: BOOLEAN }
+          - { name: eff_from_year, type: INT64, source_type: INT }
+      - table: ods_agent_assignment_scd2
+        source_table: ods_agent_assignment_scd2
+        expect_object_type: TABLE
+        columns:
+          - { name: assignment_history_id, type: STRING, source_type: STRING }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: queue_id, type: INT64, source_type: BIGINT }
+          - { name: role_on_program, type: STRING, source_type: STRING }
+          - { name: eff_from_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: eff_to_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: is_current, type: BOOL, source_type: BOOLEAN }
+          - { name: eff_from_year, type: INT64, source_type: INT }
+      - table: ods_client_acid
+        source_table: ods_client_acid
+        expect_object_type: TABLE
+        columns:
+          - { name: client_id, type: INT64, source_type: BIGINT }
+          - { name: client_code, type: STRING, source_type: STRING }
+          - { name: client_name, type: STRING, source_type: STRING }
+          - { name: industry, type: STRING, source_type: STRING }
+          - { name: hq_country, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: created_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: updated_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+      - table: ods_agent_acid
+        source_table: ods_agent_acid
+        expect_object_type: TABLE
+        cluster_by: [agent_id]
+        columns:
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: employee_no, type: STRING, source_type: STRING }
+          - { name: full_name, type: STRING, source_type: STRING }
+          - { name: email, type: STRING, source_type: STRING }
+          - { name: org_unit_id, type: INT64, source_type: BIGINT }
+          - { name: job_grade, type: STRING, source_type: STRING }
+          - { name: employment_type, type: STRING, source_type: STRING }
+          - { name: hire_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: term_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: status, type: STRING, source_type: STRING }
+      - table: ods_ticket_acid
+        source_table: ods_ticket_acid
+        expect_object_type: TABLE
+        cluster_by: [ticket_id]
+        columns:
+          - { name: ticket_id, type: INT64, source_type: BIGINT }
+          - { name: ticket_no, type: STRING, source_type: STRING }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: category_id, type: INT64, source_type: BIGINT }
+          - { name: assigned_agent_id, type: INT64, source_type: BIGINT }
+          - { name: priority, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: created_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: updated_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: resolved_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+      - table: ods_invoice_acid
+        source_table: ods_invoice_acid
+        expect_object_type: TABLE
+        columns:
+          - { name: invoice_id, type: INT64, source_type: BIGINT }
+          - { name: invoice_no, type: STRING, source_type: STRING }
+          - { name: client_id, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: period_month, type: STRING, source_type: STRING }
+          - { name: issued_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: due_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: currency, type: STRING, source_type: STRING }
+          - { name: total_amount, type: NUMERIC(14,2), scale: 2, source_type: DECIMAL(14,2) }
+          - { name: status, type: STRING, source_type: STRING }
+  # ======================================================================
+  # dm dataset — schema conformance
+  # ======================================================================
+  - pattern: schema_conformance
+    id: schema-dm
+    target_dataset: "${BUILD_DATASET}_dm"
+    source_database: "${SOURCE_DATABASE}"
+    expect_table_count: 25
+    tables:
+      - table: dim_date
+        source_table: dim_date
+        expect_object_type: TABLE
+        columns:
+          - { name: date_key, type: INT64, source_type: INT }
+          - { name: full_date, type: STRING, source_type: STRING }
+          - { name: day_of_week, type: INT64, source_type: INT }
+          - { name: day_name, type: STRING, source_type: STRING }
+          - { name: week_of_year, type: INT64, source_type: INT }
+          - { name: month_no, type: INT64, source_type: INT }
+          - { name: month_name, type: STRING, source_type: STRING }
+          - { name: quarter_no, type: INT64, source_type: INT }
+          - { name: year_no, type: INT64, source_type: INT }
+          - { name: is_weekend, type: BOOL, source_type: BOOLEAN }
+          - { name: is_holiday_us, type: BOOL, source_type: BOOLEAN }
+          - { name: fiscal_period, type: STRING, source_type: STRING }
+      - table: dim_agent
+        source_table: dim_agent
+        expect_object_type: TABLE
+        columns:
+          - { name: agent_sk, type: INT64, source_type: BIGINT }
+          - { name: agent_id, type: INT64, source_type: BIGINT }
+          - { name: employee_no, type: STRING, source_type: STRING }
+          - { name: full_name, type: STRING, source_type: STRING }
+          - { name: job_grade, type: STRING, source_type: STRING }
+          - { name: employment_type, type: STRING, source_type: STRING }
+          - { name: org_unit_id, type: INT64, source_type: BIGINT }
+          - { name: team_name, type: STRING, source_type: STRING }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: hire_date_key, type: INT64, source_type: INT }
+          - { name: is_current, type: BOOL, source_type: BOOLEAN }
+      - table: dim_client
+        source_table: dim_client
+        expect_object_type: TABLE
+        columns:
+          - { name: client_sk, type: INT64, source_type: BIGINT }
+          - { name: client_id, type: INT64, source_type: BIGINT }
+          - { name: client_code, type: STRING, source_type: STRING }
+          - { name: client_name, type: STRING, source_type: STRING }
+          - { name: industry, type: STRING, source_type: STRING }
+          - { name: hq_country, type: STRING, source_type: STRING }
+          - { name: primary_contact_name, type: STRING, source_type: STRING }
+          - { name: primary_contact_email, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+      - table: dim_program
+        source_table: dim_program
+        expect_object_type: TABLE
+        columns:
+          - { name: program_sk, type: INT64, source_type: BIGINT }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: program_code, type: STRING, source_type: STRING }
+          - { name: program_name, type: STRING, source_type: STRING }
+          - { name: client_id, type: INT64, source_type: BIGINT }
+          - { name: line_of_business, type: STRING, source_type: STRING }
+          - { name: channel_mix, type: STRING, source_type: STRING }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: billing_model, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: go_live_date_key, type: INT64, source_type: INT }
+      - table: dim_queue
+        source_table: dim_queue
+        expect_object_type: TABLE
+        columns:
+          - { name: queue_sk, type: INT64, source_type: BIGINT }
+          - { name: queue_id, type: INT64, source_type: BIGINT }
+          - { name: queue_code, type: STRING, source_type: STRING }
+          - { name: queue_name, type: STRING, source_type: STRING }
+          - { name: program_id, type: INT64, source_type: BIGINT }
+          - { name: media_type, type: STRING, source_type: STRING }
+          - { name: priority, type: INT64, source_type: INT }
+      - table: dim_site
+        source_table: dim_site
+        expect_object_type: TABLE
+        columns:
+          - { name: site_sk, type: INT64, source_type: BIGINT }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: site_name, type: STRING, source_type: STRING }
+          - { name: region, type: STRING, source_type: STRING }
+          - { name: country, type: STRING, source_type: STRING }
+          - { name: timezone, type: STRING, source_type: STRING }
+      - table: dim_shift
+        source_table: dim_shift
+        expect_object_type: TABLE
+        columns:
+          - { name: shift_sk, type: INT64, source_type: BIGINT }
+          - { name: shift_id, type: INT64, source_type: BIGINT }
+          - { name: shift_code, type: STRING, source_type: STRING }
+          - { name: shift_name, type: STRING, source_type: STRING }
+          - { name: start_hhmm, type: STRING, source_type: STRING }
+          - { name: end_hhmm, type: STRING, source_type: STRING }
+          - { name: overnight_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: site_code, type: STRING, source_type: STRING }
+      - table: dim_org
+        source_table: dim_org
+        expect_object_type: TABLE
+        columns:
+          - { name: org_sk, type: INT64, source_type: BIGINT }
+          - { name: org_unit_id, type: INT64, source_type: BIGINT }
+          - { name: unit_code, type: STRING, source_type: STRING }
+          - { name: unit_name, type: STRING, source_type: STRING }
+          - { name: unit_type, type: STRING, source_type: STRING }
+          - { name: level1_name, type: STRING, source_type: STRING }
+          - { name: level2_name, type: STRING, source_type: STRING }
+          - { name: level3_name, type: STRING, source_type: STRING }
+          - { name: level4_name, type: STRING, source_type: STRING }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: cost_center, type: STRING, source_type: STRING }
+      - table: dim_disposition
+        source_table: dim_disposition
+        expect_object_type: TABLE
+        columns:
+          - { name: disposition_sk, type: INT64, source_type: BIGINT }
+          - { name: disposition_code, type: STRING, source_type: STRING }
+          - { name: disposition_desc, type: STRING, source_type: STRING }
+          - { name: category, type: STRING, source_type: STRING }
+          - { name: billable_flag, type: BOOL, source_type: BOOLEAN }
+      - table: fact_interaction
+        source_table: fact_interaction
+        expect_object_type: TABLE
+        partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))"
+        cluster_by: [agent_sk, channel, client_sk, customer_ref]
+        table_options:
+          require_partition_filter: true
+        columns:
+          - { name: interaction_id, type: STRING, source_type: STRING }
+          - { name: client_sk, type: INT64, source_type: BIGINT }
+          - { name: program_sk, type: INT64, source_type: BIGINT }
+          - { name: queue_sk, type: INT64, source_type: BIGINT }
+          - { name: agent_sk, type: INT64, source_type: BIGINT }
+          - { name: customer_ref, type: STRING, source_type: STRING }
+          - { name: start_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: end_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: handle_seconds, type: INT64, source_type: INT }
+          - { name: resolved_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: source_system, type: STRING, source_type: STRING }
+          - { name: date_key, type: INT64, source_type: INT }
+          - { name: channel, type: STRING, source_type: STRING }
+      - table: fact_agent_activity
+        source_table: fact_agent_activity
+        expect_object_type: TABLE
+        partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))"
+        cluster_by: [agent_sk, state_code]
+        table_options:
+          require_partition_filter: true
+        columns:
+          - { name: agent_sk, type: INT64, source_type: BIGINT }
+          - { name: state_code, type: STRING, source_type: STRING }
+          - { name: state_seconds, type: INT64, source_type: BIGINT }
+          - { name: occurrence_count, type: INT64, source_type: INT }
+          - { name: first_state_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: last_state_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: date_key, type: INT64, source_type: INT }
+      - table: fact_queue_interval
+        source_table: fact_queue_interval
+        expect_object_type: TABLE
+        partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))"
+        cluster_by: [queue_sk]
+        table_options:
+          require_partition_filter: true
+        columns:
+          - { name: queue_sk, type: INT64, source_type: BIGINT }
+          - { name: interval_start_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: offered, type: INT64, source_type: INT }
+          - { name: answered, type: INT64, source_type: INT }
+          - { name: abandoned, type: INT64, source_type: INT }
+          - { name: answered_in_sl, type: INT64, source_type: INT }
+          - { name: sl_threshold_sec, type: INT64, source_type: INT }
+          - { name: avg_speed_answer_sec, type: NUMERIC(8,2), scale: 2, source_type: DECIMAL(8,2) }
+          - { name: avg_handle_sec, type: NUMERIC(8,2), scale: 2, source_type: DECIMAL(8,2) }
+          - { name: date_key, type: INT64, source_type: INT }
+      - table: fact_csat_survey
+        source_table: fact_csat_survey
+        expect_object_type: TABLE
+        partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))"
+        cluster_by: [program_sk, agent_sk]
+        columns:
+          - { name: survey_id, type: STRING, source_type: STRING }
+          - { name: interaction_id, type: STRING, source_type: STRING }
+          - { name: client_sk, type: INT64, source_type: BIGINT }
+          - { name: program_sk, type: INT64, source_type: BIGINT }
+          - { name: agent_sk, type: INT64, source_type: BIGINT }
+          - { name: survey_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: csat_score, type: INT64, source_type: INT }
+          - { name: nps_score, type: INT64, source_type: INT }
+          - { name: fcr_claimed, type: BOOL, source_type: BOOLEAN }
+          - { name: date_key, type: INT64, source_type: INT }
+      - table: fact_qa_evaluation
+        source_table: fact_qa_evaluation
+        expect_object_type: TABLE
+        partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))"
+        columns:
+          - { name: qa_form_id, type: STRING, source_type: STRING }
+          - { name: interaction_id, type: STRING, source_type: STRING }
+          - { name: agent_sk, type: INT64, source_type: BIGINT }
+          - { name: program_sk, type: INT64, source_type: BIGINT }
+          - { name: evaluated_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: scored_points, type: INT64, source_type: INT }
+          - { name: max_points, type: INT64, source_type: INT }
+          - { name: overall_pct, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: auto_fail, type: BOOL, source_type: BOOLEAN }
+          - { name: date_key, type: INT64, source_type: INT }
+      - table: fact_billing_line
+        source_table: fact_billing_line
+        expect_object_type: TABLE
+        partition_by: "DATE_TRUNC(period_month, MONTH)"
+        cluster_by: [client_sk, program_sk]
+        columns:
+          - { name: invoice_line_id, type: INT64, source_type: BIGINT }
+          - { name: invoice_id, type: INT64, source_type: BIGINT }
+          - { name: client_sk, type: INT64, source_type: BIGINT }
+          - { name: program_sk, type: INT64, source_type: BIGINT }
+          - { name: service_code, type: STRING, source_type: STRING }
+          - { name: qty, type: NUMERIC(12,2), scale: 2, source_type: DECIMAL(12,2) }
+          - { name: unit_rate, type: NUMERIC(12,4), scale: 4, source_type: DECIMAL(12,4) }
+          - { name: line_amount, type: NUMERIC(14,2), scale: 2, source_type: DECIMAL(14,2) }
+          - { name: adjustment_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: invoice_status, type: STRING, source_type: STRING }
+          - { name: period_month, type: DATE, source_type: STRING }
+      - table: fact_adherence_daily
+        source_table: fact_adherence_daily
+        expect_object_type: TABLE
+        partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))"
+        cluster_by: [agent_sk]
+        columns:
+          - { name: agent_sk, type: INT64, source_type: BIGINT }
+          - { name: scheduled_minutes, type: INT64, source_type: INT }
+          - { name: worked_minutes, type: INT64, source_type: INT }
+          - { name: exception_minutes, type: INT64, source_type: INT }
+          - { name: timeoff_minutes, type: INT64, source_type: INT }
+          - { name: adherence_pct, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: occupancy_pct, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: date_key, type: INT64, source_type: INT }
+      - table: fact_ticket
+        source_table: fact_ticket
+        expect_object_type: TABLE
+        partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))"
+        cluster_by: [program_sk, assigned_agent_sk]
+        columns:
+          - { name: ticket_id, type: INT64, source_type: BIGINT }
+          - { name: program_sk, type: INT64, source_type: BIGINT }
+          - { name: category_code, type: STRING, source_type: STRING }
+          - { name: assigned_agent_sk, type: INT64, source_type: BIGINT }
+          - { name: priority, type: STRING, source_type: STRING }
+          - { name: status, type: STRING, source_type: STRING }
+          - { name: created_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: resolved_ts, type: TIMESTAMP, source_type: TIMESTAMP }
+          - { name: resolution_minutes, type: INT64, source_type: INT }
+          - { name: sla_breached_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: touch_count, type: INT64, source_type: INT }
+          - { name: date_key, type: INT64, source_type: INT }
+      - table: fact_ivr_path
+        source_table: fact_ivr_path
+        expect_object_type: TABLE
+        partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))"
+        columns:
+          - { name: session_ref, type: STRING, source_type: STRING }
+          - { name: client_code, type: STRING, source_type: STRING }
+          - { name: menu_path_full, type: STRING, source_type: STRING }
+          - { name: hops, type: INT64, source_type: INT }
+          - { name: contained_flag, type: BOOL, source_type: BOOLEAN }
+          - { name: exit_key, type: STRING, source_type: STRING }
+          - { name: duration_seconds, type: INT64, source_type: INT }
+          - { name: date_key, type: INT64, source_type: INT }
+      - table: agg_agent_daily
+        source_table: agg_agent_daily
+        expect_object_type: TABLE
+        partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))"
+        cluster_by: [agent_sk, site_code]
+        columns:
+          - { name: agent_sk, type: INT64, source_type: BIGINT }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: interactions_handled, type: INT64, source_type: INT }
+          - { name: avg_handle_seconds, type: NUMERIC(8,2), scale: 2, source_type: DECIMAL(8,2) }
+          - { name: talk_seconds, type: INT64, source_type: BIGINT }
+          - { name: acw_seconds, type: INT64, source_type: BIGINT }
+          - { name: aux_seconds, type: INT64, source_type: BIGINT }
+          - { name: adherence_pct, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: occupancy_pct, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: date_key, type: INT64, source_type: INT }
+      - table: agg_program_monthly
+        source_table: agg_program_monthly
+        expect_object_type: TABLE
+        partition_by: "DATE_TRUNC(period_month, MONTH)"
+        columns:
+          - { name: client_sk, type: INT64, source_type: BIGINT }
+          - { name: program_sk, type: INT64, source_type: BIGINT }
+          - { name: line_of_business, type: STRING, source_type: STRING }
+          - { name: interactions, type: INT64, source_type: BIGINT }
+          - { name: avg_handle_seconds, type: NUMERIC(8,2), scale: 2, source_type: DECIMAL(8,2) }
+          - { name: avg_csat, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: billed_amount, type: NUMERIC(14,2), scale: 2, source_type: DECIMAL(14,2) }
+          - { name: grouping_level, type: INT64, source_type: INT }
+          - { name: period_month, type: DATE, source_type: STRING }
+      - table: agg_queue_hourly
+        source_table: agg_queue_hourly
+        expect_object_type: TABLE
+        partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))"
+        cluster_by: [queue_sk]
+        columns:
+          - { name: queue_sk, type: INT64, source_type: BIGINT }
+          - { name: hour_of_day, type: INT64, source_type: INT }
+          - { name: offered, type: INT64, source_type: INT }
+          - { name: answered, type: INT64, source_type: INT }
+          - { name: abandoned, type: INT64, source_type: INT }
+          - { name: sl_pct, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: forecast_volume, type: INT64, source_type: INT }
+          - { name: volume_variance_pct, type: NUMERIC(7,2), scale: 2, source_type: DECIMAL(7,2) }
+          - { name: date_key, type: INT64, source_type: INT }
+      - table: agg_csat_rollup_monthly
+        source_table: agg_csat_rollup_monthly
+        expect_object_type: TABLE
+        partition_by: "DATE_TRUNC(period_month, MONTH)"
+        columns:
+          - { name: client_sk, type: INT64, source_type: BIGINT }
+          - { name: program_sk, type: INT64, source_type: BIGINT }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: surveys, type: INT64, source_type: BIGINT }
+          - { name: avg_csat, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: pct_promoters, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: pct_detractors, type: NUMERIC(5,2), scale: 2, source_type: DECIMAL(5,2) }
+          - { name: grouping_id, type: INT64, source_type: INT }
+          - { name: period_month, type: DATE, source_type: STRING }
+      - table: agg_billing_monthly
+        source_table: agg_billing_monthly
+        expect_object_type: TABLE
+        partition_by: "DATE_TRUNC(period_month, MONTH)"
+        columns:
+          - { name: client_sk, type: INT64, source_type: BIGINT }
+          - { name: program_sk, type: INT64, source_type: BIGINT }
+          - { name: billed_amount, type: NUMERIC(14,2), scale: 2, source_type: DECIMAL(14,2) }
+          - { name: sla_credit_amount, type: NUMERIC(12,2), scale: 2, source_type: DECIMAL(12,2) }
+          - { name: telco_cost_amount, type: NUMERIC(12,2), scale: 2, source_type: DECIMAL(12,2) }
+          - { name: net_revenue, type: NUMERIC(14,2), scale: 2, source_type: DECIMAL(14,2) }
+          - { name: period_month, type: DATE, source_type: STRING }
+      - table: mv_agent_weekly
+        source_table: agg_agent_weekly
+        expect_object_type: MATERIALIZED_VIEW
+        columns:
+          - { name: week_start_key, type: INT64, source_type: INT }
+          - { name: agent_sk, type: INT64, source_type: BIGINT }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: days_worked, type: INT64, source_type: INT }
+          - { name: interactions_handled, type: INT64, source_type: INT }
+          - { name: avg_handle_seconds, type: NUMERIC, scale: 9, source_type: DECIMAL(8,2) }
+          - { name: adherence_pct, type: NUMERIC, scale: 9, source_type: DECIMAL(5,2) }
+          - { name: occupancy_pct, type: NUMERIC, scale: 9, source_type: DECIMAL(5,2) }
+      - table: mv_site_daily
+        source_table: agg_site_daily
+        expect_object_type: MATERIALIZED_VIEW
+        columns:
+          - { name: date_key, type: INT64, source_type: INT }
+          - { name: site_code, type: STRING, source_type: STRING }
+          - { name: agents_active, type: INT64, source_type: INT }
+          - { name: interactions, type: INT64, source_type: BIGINT }
+          - { name: avg_handle_seconds, type: NUMERIC, scale: 9, source_type: DECIMAL(8,2) }
+          - { name: sl_pct, type: NUMERIC, scale: 9, source_type: DECIMAL(5,2) }
+          - { name: adherence_pct, type: NUMERIC, scale: 9, source_type: DECIMAL(5,2) }
+      - table: vw_org_hierarchy
+        expect_object_type: VIEW
+      - table: vw_active_agents_ndv
+        expect_object_type: VIEW
+      - table: vw_csat_rollup
+        expect_object_type: VIEW
+      - table: vw_call_driver_regex
+        expect_object_type: VIEW
+      - table: vw_repeat_contact_window
+        expect_object_type: VIEW
+      - table: vw_billing_reconciliation
+        expect_object_type: VIEW
+      - table: vw_agent_roster_current
+        expect_object_type: VIEW
+      - table: vw_agent_scorecard
+        expect_object_type: VIEW
+      - table: vw_attrition_risk
+        expect_object_type: VIEW
+      - table: vw_queue_sla_attainment
+        expect_object_type: VIEW
+      - table: vw_first_contact_resolution
+        expect_object_type: VIEW
+      - table: vw_occupancy_utilization
+        expect_object_type: VIEW
+      - table: vw_shrinkage_analysis
+        expect_object_type: VIEW
+      - table: vw_program_margin
+        expect_object_type: VIEW
+      - table: vw_client_executive_summary
+        expect_object_type: VIEW
+
