@@ -1,14 +1,15 @@
 -- ----------------------------------------------------------------------------
 -- 07-ods-acid: ods: Former Hive ACID transactional tables (4)
--- Migrated from Hive ORC ACID tables to native BigQuery tables.
--- Dropped: CLUSTERED BY...INTO N BUCKETS, STORED AS ORC,
---          TBLPROPERTIES ('transactional'='true', 'orc.compress'='SNAPPY').
+-- Translated from: hive/ddl/07-ods-acid.hql
+-- Hive constructs dropped: CLUSTERED BY ... INTO N BUCKETS, STORED AS ORC,
+--   TBLPROPERTIES ('transactional'='true', 'orc.compress'='SNAPPY').
 -- BQ DML is always transactional — no TBLPROPERTIES equivalent needed.
 -- Type map: BIGINT→INT64, STRING→STRING, TIMESTAMP→TIMESTAMP,
---           DECIMAL(p,s)→NUMERIC(p,s).
--- ods_agent_acid: CLUSTER BY (agent_id)  — Schema bucketing translation.
--- ods_ticket_acid: CLUSTER BY (ticket_id) — Schema bucketing translation.
--- ods_client_acid, ods_invoice_acid: no clustering (tiny tables).
+--   DECIMAL(p,s)→NUMERIC(p,s).
+-- Clustering per locked Schema bucketing translation:
+--   ods_agent_acid  → CLUSTER BY (agent_id)
+--   ods_ticket_acid → CLUSTER BY (ticket_id)
+-- ods_client_acid, ods_invoice_acid: no clustering (tiny tables: 10, 290 rows).
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS ods.ods_client_acid (
@@ -59,6 +60,6 @@ CREATE TABLE IF NOT EXISTS ods.ods_invoice_acid (
   issued_ts                   TIMESTAMP,
   due_ts                      TIMESTAMP,
   currency                    STRING,
-  total_amount                NUMERIC(14,2),
+  total_amount                NUMERIC(14, 2),
   status                      STRING
 );

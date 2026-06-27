@@ -1,18 +1,16 @@
 -- ----------------------------------------------------------------------------
 -- 06-ods-delta-scd2: ods: delta-merged entities (8) + SCD-2 histories (3)
--- Migrated from Hive managed PARQUET tables to native BigQuery tables.
--- Dropped: STORED AS PARQUET, TBLPROPERTIES.
+-- Translated from: hive/ddl/06-ods-delta-scd2.hql
+-- Hive constructs dropped: STORED AS PARQUET, TBLPROPERTIES.
 -- Type map: BIGINT→INT64, INT→INT64, TIMESTAMP→TIMESTAMP,
---           BOOLEAN→BOOL, DECIMAL(p,s)→NUMERIC(p,s).
+--   BOOLEAN→BOOL, DECIMAL(p,s)→NUMERIC(p,s).
 -- Delta-merge partition columns (work_month, period_month, swap_month,
--- event_month, event_date, snapshot_date) promoted from STRING to DATE.
+--   event_month, event_date, snapshot_date) promoted from STRING to DATE.
 -- SCD-2 partition columns (eff_from_year INT) stay as INT64.
 -- All partition columns appended at end. No BQ partitioning.
 -- ----------------------------------------------------------------------------
 
--- =========================================================================
--- Delta-merged entities (8)
--- =========================================================================
+-- ===== Delta-merged entities (8) =====
 
 CREATE TABLE IF NOT EXISTS ods.ods_timesheet (
   timesheet_id                INT64,
@@ -30,7 +28,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_payroll_adjustment (
   adjustment_id               INT64,
   agent_id                    INT64,
   adj_type                    STRING,
-  amount                      NUMERIC(12,2),
+  amount                      NUMERIC(12, 2),
   last_change_ts              TIMESTAMP,
   period_month                DATE
 );
@@ -39,7 +37,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_sla_credit (
   sla_credit_id               INT64,
   program_id                  INT64,
   sla_target_id               INT64,
-  credit_amount               NUMERIC(12,2),
+  credit_amount               NUMERIC(12, 2),
   reason                      STRING,
   last_change_ts              TIMESTAMP,
   period_month                DATE
@@ -94,7 +92,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_rate_card (
   rate_card_id                INT64,
   program_id                  INT64,
   service_code                STRING,
-  rate                        NUMERIC(12,4),
+  rate                        NUMERIC(12, 4),
   currency                    STRING,
   effective_ts                TIMESTAMP,
   expiry_ts                   TIMESTAMP,
@@ -102,9 +100,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_rate_card (
   snapshot_date               DATE
 );
 
--- =========================================================================
--- SCD-2 histories (3) — eff_from_year stays INT64 (not date-like)
--- =========================================================================
+-- ===== SCD-2 histories (3) — eff_from_year stays INT64 (not date-like) =====
 
 CREATE TABLE IF NOT EXISTS ods.ods_agent_scd2 (
   agent_history_id            STRING,

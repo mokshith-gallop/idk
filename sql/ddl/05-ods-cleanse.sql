@@ -1,13 +1,13 @@
 -- ----------------------------------------------------------------------------
 -- 05-ods-cleanse: ods: cleansed/conformed entities (15)
--- Migrated from Hive managed PARQUET tables to native BigQuery tables.
--- Dropped: STORED AS PARQUET, TBLPROPERTIES.
+-- Translated from: hive/ddl/05-ods-cleanse.hql
+-- Hive constructs dropped: STORED AS PARQUET, TBLPROPERTIES.
 -- Type map: BIGINT→INT64, INT→INT64, TIMESTAMP→TIMESTAMP,
---           BOOLEAN→BOOL, DECIMAL(p,s)→NUMERIC(p,s).
+--   BOOLEAN→BOOL, DECIMAL(p,s)→NUMERIC(p,s).
 -- Partition columns (snapshot_date, event_date, sched_date, call_date)
--- promoted from STRING to DATE and appended at end.
--- ods_interaction clustered per Performance Optimization.
--- No BQ partitioning on ODS cleanse tables.
+--   promoted from STRING to DATE and appended at end.
+-- ods_interaction clustered per locked Performance Optimization.
+-- No BQ partitioning on ODS cleanse tables (unpartitioned).
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS ods.ods_program (
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS ods.ods_contract_line (
   line_no                     INT64,
   service_code                STRING,
   uom                         STRING,
-  unit_rate                   NUMERIC(12,4),
-  min_commit                  NUMERIC(12,2),
+  unit_rate                   NUMERIC(12, 4),
+  min_commit                  NUMERIC(12, 2),
   effective_ts                TIMESTAMP,
   snapshot_date               DATE
 );
@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_qa_evaluation (
   scored_points               INT64,
   max_points                  INT64,
   auto_fail                   BOOL,
-  overall_pct                 NUMERIC(5,2),
+  overall_pct                 NUMERIC(5, 2),
   event_date                  DATE
 );
 
