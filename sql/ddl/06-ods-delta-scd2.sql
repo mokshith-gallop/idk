@@ -1,0 +1,146 @@
+-- ----------------------------------------------------------------------------
+-- 06-ods-delta-scd2: ods: delta-merged entities (8) + SCD-2 histories (3)
+-- Migrated from Hive managed PARQUET tables to native BigQuery tables.
+-- Dropped: STORED AS PARQUET, TBLPROPERTIES.
+-- Type map: BIGINT→INT64, INT→INT64, TIMESTAMP→TIMESTAMP,
+--           BOOLEAN→BOOL, DECIMAL(p,s)→NUMERIC(p,s).
+-- Delta-merge partition columns (work_month, period_month, swap_month,
+-- event_month, event_date, snapshot_date) promoted from STRING to DATE.
+-- SCD-2 partition columns (eff_from_year INT) stay as INT64.
+-- All partition columns appended at end. No BQ partitioning.
+-- ----------------------------------------------------------------------------
+
+-- =========================================================================
+-- Delta-merged entities (8)
+-- =========================================================================
+
+CREATE TABLE IF NOT EXISTS ods.ods_timesheet (
+  timesheet_id                INT64,
+  agent_id                    INT64,
+  work_date                   STRING,
+  program_id                  INT64,
+  billable_minutes            INT64,
+  nonbillable_minutes         INT64,
+  approved_flag               BOOL,
+  last_change_ts              TIMESTAMP,
+  work_month                  DATE
+);
+
+CREATE TABLE IF NOT EXISTS ods.ods_payroll_adjustment (
+  adjustment_id               INT64,
+  agent_id                    INT64,
+  adj_type                    STRING,
+  amount                      NUMERIC(12,2),
+  last_change_ts              TIMESTAMP,
+  period_month                DATE
+);
+
+CREATE TABLE IF NOT EXISTS ods.ods_sla_credit (
+  sla_credit_id               INT64,
+  program_id                  INT64,
+  sla_target_id               INT64,
+  credit_amount               NUMERIC(12,2),
+  reason                      STRING,
+  last_change_ts              TIMESTAMP,
+  period_month                DATE
+);
+
+CREATE TABLE IF NOT EXISTS ods.ods_callback_request (
+  callback_id                 INT64,
+  call_id                     INT64,
+  queue_id                    INT64,
+  requested_ts                TIMESTAMP,
+  scheduled_ts                TIMESTAMP,
+  completed_flag              BOOL,
+  last_change_ts              TIMESTAMP,
+  event_date                  DATE
+);
+
+CREATE TABLE IF NOT EXISTS ods.ods_shift_swap (
+  swap_id                     INT64,
+  requesting_agent_id         INT64,
+  accepting_agent_id          INT64,
+  schedule_id                 INT64,
+  swap_date                   STRING,
+  status                      STRING,
+  last_change_ts              TIMESTAMP,
+  swap_month                  DATE
+);
+
+CREATE TABLE IF NOT EXISTS ods.ods_ticket_worklog (
+  worklog_id                  INT64,
+  ticket_id                   INT64,
+  agent_id                    INT64,
+  minutes_logged              INT64,
+  log_ts                      TIMESTAMP,
+  note                        STRING,
+  last_change_ts              TIMESTAMP,
+  event_date                  DATE
+);
+
+CREATE TABLE IF NOT EXISTS ods.ods_attrition_event (
+  attrition_event_id          INT64,
+  agent_id                    INT64,
+  notice_ts                   TIMESTAMP,
+  last_day                    STRING,
+  attrition_type              STRING,
+  reason_code                 STRING,
+  regrettable_flag            BOOL,
+  last_change_ts              TIMESTAMP,
+  event_month                 DATE
+);
+
+CREATE TABLE IF NOT EXISTS ods.ods_rate_card (
+  rate_card_id                INT64,
+  program_id                  INT64,
+  service_code                STRING,
+  rate                        NUMERIC(12,4),
+  currency                    STRING,
+  effective_ts                TIMESTAMP,
+  expiry_ts                   TIMESTAMP,
+  last_change_ts              TIMESTAMP,
+  snapshot_date               DATE
+);
+
+-- =========================================================================
+-- SCD-2 histories (3) — eff_from_year stays INT64 (not date-like)
+-- =========================================================================
+
+CREATE TABLE IF NOT EXISTS ods.ods_agent_scd2 (
+  agent_history_id            STRING,
+  agent_id                    INT64,
+  employee_no                 STRING,
+  org_unit_id                 INT64,
+  job_grade                   STRING,
+  employment_type             STRING,
+  status                      STRING,
+  eff_from_ts                 TIMESTAMP,
+  eff_to_ts                   TIMESTAMP,
+  is_current                  BOOL,
+  eff_from_year               INT64
+);
+
+CREATE TABLE IF NOT EXISTS ods.ods_agent_skill_scd2 (
+  agent_skill_history_id      STRING,
+  agent_id                    INT64,
+  skill_id                    INT64,
+  skill_code                  STRING,
+  proficiency                 INT64,
+  certified                   BOOL,
+  eff_from_ts                 TIMESTAMP,
+  eff_to_ts                   TIMESTAMP,
+  is_current                  BOOL,
+  eff_from_year               INT64
+);
+
+CREATE TABLE IF NOT EXISTS ods.ods_agent_assignment_scd2 (
+  assignment_history_id       STRING,
+  agent_id                    INT64,
+  program_id                  INT64,
+  queue_id                    INT64,
+  role_on_program             STRING,
+  eff_from_ts                 TIMESTAMP,
+  eff_to_ts                   TIMESTAMP,
+  is_current                  BOOL,
+  eff_from_year               INT64
+);
