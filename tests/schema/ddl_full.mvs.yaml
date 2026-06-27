@@ -1,0 +1,559 @@
+# ===========================================================================
+# ddl_full.mvs.yaml — Mode-2 build-and-verify for the full BigQuery physical
+# schema DDL (115 objects across 3 datasets: staging, ods, dm).
+#
+# The DDL files use fully-qualified dataset names (staging.X, ods.Y, dm.Z),
+# so 01-create-datasets.sql creates the schemas first; subsequent files
+# create tables/MVs/views within them. The harness applies each DDL file
+# verbatim in lexicographic order.
+#
+# Validation suites run per-dataset schema_conformance against the live
+# BQ catalog after DDL application. Source ground truth comes from
+# manifests/tables.yaml + hive/ddl/*.hql (never from the DDL files).
+# ===========================================================================
+name: ddl_full_schema
+connections:
+  target: { engine: bigquery }
+
+migration:
+  # DDL uses fully-qualified dataset names (staging/ods/dm), not the build
+  # dataset. The build dataset is used only as the default dataset for the
+  # harness; the actual objects live in their declared schemas.
+  steps:
+    - { kind: ddl, sql: sql/ddl/01-create-datasets.sql }
+    - { kind: ddl, sql: sql/ddl/02-staging-sqoop-mirrors.sql }
+    - { kind: ddl, sql: sql/ddl/03-staging-delta-feeds.sql }
+    - { kind: ddl, sql: sql/ddl/04-staging-file-feeds.sql }
+    - { kind: ddl, sql: sql/ddl/05-ods-cleanse.sql }
+    - { kind: ddl, sql: sql/ddl/06-ods-delta-scd2.sql }
+    - { kind: ddl, sql: sql/ddl/07-ods-acid.sql }
+    - { kind: ddl, sql: sql/ddl/08-dm-tables.sql }
+    - { kind: ddl, sql: sql/ddl/08b-dm-materialized-views.sql }
+    - { kind: ddl, sql: sql/ddl/09-dm-views.sql }
+
+suites:
+  # -----------------------------------------------------------------------
+  # Staging dataset: 45 tables (27 sqoop + 8 delta + 10 file-feed)
+  # -----------------------------------------------------------------------
+  - pattern: schema_conformance
+    id: staging-schema
+    target_dataset: staging
+    expect_table_count: 45
+    tables:
+      # -- CRM sqoop mirrors (6) --
+      - table: stg_crm_client
+        columns:
+          - { name: client_id, type: INT64 }
+          - { name: client_code, type: STRING }
+          - { name: client_name, type: STRING }
+          - { name: industry, type: STRING }
+          - { name: hq_country, type: STRING }
+          - { name: status, type: STRING }
+          - { name: created_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: updated_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_crm_client_contact
+        columns:
+          - { name: contact_id, type: INT64 }
+          - { name: client_id, type: INT64 }
+          - { name: full_name, type: STRING }
+          - { name: email, type: STRING }
+          - { name: phone, type: STRING }
+          - { name: role, type: STRING }
+          - { name: is_primary, type: BOOL }
+          - { name: created_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_crm_program
+        columns:
+          - { name: program_id, type: INT64 }
+          - { name: client_id, type: INT64 }
+          - { name: program_code, type: STRING }
+          - { name: program_name, type: STRING }
+          - { name: line_of_business, type: STRING }
+          - { name: channel_mix, type: STRING }
+          - { name: site_code, type: STRING }
+          - { name: status, type: STRING }
+          - { name: go_live_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: updated_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_crm_contract
+        columns:
+          - { name: contract_id, type: INT64 }
+          - { name: client_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: contract_no, type: STRING }
+          - { name: start_dt, type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: end_dt, type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: billing_model, type: STRING }
+          - { name: currency, type: STRING }
+          - { name: signed_dt, type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: status, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_crm_contract_line
+        columns:
+          - { name: contract_line_id, type: INT64 }
+          - { name: contract_id, type: INT64 }
+          - { name: line_no, type: INT64 }
+          - { name: service_code, type: STRING }
+          - { name: uom, type: STRING }
+          - { name: unit_rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: min_commit, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: effective_dt, type: STRING, description: "Oracle string YYYYMMDDHH24MISS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_crm_sla_target
+        columns:
+          - { name: sla_target_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: queue_id, type: INT64 }
+          - { name: metric_code, type: STRING }
+          - { name: target_value, type: "NUMERIC(10,4)", scale: 4 }
+          - { name: penalty_pct, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: effective_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      # -- HR sqoop mirrors (5) --
+      - table: stg_hr_agent
+        columns:
+          - { name: agent_id, type: INT64 }
+          - { name: employee_no, type: STRING }
+          - { name: first_name, type: STRING }
+          - { name: last_name, type: STRING }
+          - { name: email, type: STRING }
+          - { name: org_unit_id, type: INT64 }
+          - { name: job_grade, type: STRING }
+          - { name: employment_type, type: STRING }
+          - { name: hire_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: term_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: status, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_hr_org_unit
+        columns:
+          - { name: org_unit_id, type: INT64 }
+          - { name: parent_unit_id, type: INT64 }
+          - { name: unit_code, type: STRING }
+          - { name: unit_name, type: STRING }
+          - { name: unit_type, type: STRING }
+          - { name: site_code, type: STRING }
+          - { name: cost_center, type: STRING }
+          - { name: created_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_hr_employment_event
+        columns:
+          - { name: event_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: event_type, type: STRING }
+          - { name: event_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: from_org_unit_id, type: INT64 }
+          - { name: to_org_unit_id, type: INT64 }
+          - { name: reason_code, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_hr_skill
+        columns:
+          - { name: skill_id, type: INT64 }
+          - { name: skill_code, type: STRING }
+          - { name: skill_name, type: STRING }
+          - { name: skill_family, type: STRING }
+          - { name: created_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_hr_agent_skill
+        columns:
+          - { name: agent_skill_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: skill_id, type: INT64 }
+          - { name: proficiency, type: INT64 }
+          - { name: certified, type: BOOL }
+          - { name: effective_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: expiry_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      # -- WFM sqoop mirrors (5) --
+      - table: stg_wfm_shift
+        columns:
+          - { name: shift_id, type: INT64 }
+          - { name: shift_code, type: STRING }
+          - { name: shift_name, type: STRING }
+          - { name: start_hhmm, type: STRING }
+          - { name: end_hhmm, type: STRING }
+          - { name: overnight_flag, type: BOOL }
+          - { name: site_code, type: STRING }
+          - { name: created_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_wfm_schedule
+        columns:
+          - { name: schedule_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: shift_id, type: INT64 }
+          - { name: sched_date, type: STRING }
+          - { name: start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: paid_minutes, type: INT64 }
+          - { name: activity_code, type: STRING }
+          - { name: load_date, type: DATE }
+          - { name: site_code, type: STRING }
+      - table: stg_wfm_adherence_event
+        columns:
+          - { name: adherence_event_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: schedule_id, type: INT64 }
+          - { name: exception_type, type: STRING }
+          - { name: start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: approved_flag, type: BOOL }
+          - { name: load_date, type: DATE }
+      - table: stg_wfm_forecast
+        columns:
+          - { name: forecast_id, type: INT64 }
+          - { name: queue_id, type: INT64 }
+          - { name: interval_start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: forecast_volume, type: INT64 }
+          - { name: forecast_aht_sec, type: INT64 }
+          - { name: required_fte, type: "NUMERIC(8,2)", scale: 2 }
+          - { name: load_date, type: DATE }
+      - table: stg_wfm_timeoff_request
+        columns:
+          - { name: timeoff_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: request_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: start_date, type: STRING }
+          - { name: end_date, type: STRING }
+          - { name: timeoff_type, type: STRING }
+          - { name: status, type: STRING }
+          - { name: load_date, type: DATE }
+      # -- Telephony sqoop mirrors (5) --
+      - table: stg_tel_call
+        columns:
+          - { name: call_id, type: INT64 }
+          - { name: ani, type: STRING }
+          - { name: dnis, type: STRING }
+          - { name: queue_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: answer_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: disposition_code, type: STRING }
+          - { name: direction, type: STRING }
+          - { name: recording_id, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_tel_call_segment
+        columns:
+          - { name: segment_id, type: INT64 }
+          - { name: call_id, type: INT64 }
+          - { name: segment_no, type: INT64 }
+          - { name: segment_type, type: STRING }
+          - { name: start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: agent_id, type: INT64 }
+          - { name: load_date, type: DATE }
+      - table: stg_tel_queue
+        columns:
+          - { name: queue_id, type: INT64 }
+          - { name: queue_code, type: STRING }
+          - { name: queue_name, type: STRING }
+          - { name: program_id, type: INT64 }
+          - { name: media_type, type: STRING }
+          - { name: priority, type: INT64 }
+          - { name: created_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_tel_agent_state_event
+        columns:
+          - { name: state_event_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: state_code, type: STRING }
+          - { name: start_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: end_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: reason_code, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_tel_disposition_code
+        columns:
+          - { name: disposition_code, type: STRING }
+          - { name: disposition_desc, type: STRING }
+          - { name: category, type: STRING }
+          - { name: billable_flag, type: BOOL }
+          - { name: created_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      # -- Ticketing sqoop mirrors (3) --
+      - table: stg_tkt_ticket
+        columns:
+          - { name: ticket_id, type: INT64 }
+          - { name: ticket_no, type: STRING }
+          - { name: program_id, type: INT64 }
+          - { name: category_id, type: INT64 }
+          - { name: opened_by_agent_id, type: INT64 }
+          - { name: assigned_agent_id, type: INT64 }
+          - { name: interaction_ref, type: STRING }
+          - { name: priority, type: STRING }
+          - { name: status, type: STRING }
+          - { name: created_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: updated_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_tkt_ticket_event
+        columns:
+          - { name: ticket_event_id, type: INT64 }
+          - { name: ticket_id, type: INT64 }
+          - { name: event_type, type: STRING }
+          - { name: event_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: actor_agent_id, type: INT64 }
+          - { name: old_value, type: STRING }
+          - { name: new_value, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_tkt_category
+        columns:
+          - { name: category_id, type: INT64 }
+          - { name: category_code, type: STRING }
+          - { name: category_name, type: STRING }
+          - { name: sla_hours, type: INT64 }
+          - { name: created_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      # -- Finance sqoop mirrors (3) --
+      - table: stg_fin_invoice
+        columns:
+          - { name: invoice_id, type: INT64 }
+          - { name: invoice_no, type: STRING }
+          - { name: client_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: period_month, type: STRING }
+          - { name: issued_ts_sec, type: INT64, description: "!! name says seconds, VALUES ARE MILLIS !!" }
+          - { name: due_ts_sec, type: INT64, description: "!! name says seconds, VALUES ARE MILLIS !!" }
+          - { name: currency, type: STRING }
+          - { name: total_amount, type: "NUMERIC(14,2)", scale: 2 }
+          - { name: status, type: STRING }
+          - { name: load_date, type: DATE }
+      - table: stg_fin_invoice_line
+        columns:
+          - { name: invoice_line_id, type: INT64 }
+          - { name: invoice_id, type: INT64 }
+          - { name: contract_line_id, type: INT64 }
+          - { name: qty, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: unit_rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: line_amount, type: "NUMERIC(14,2)", scale: 2 }
+          - { name: adjustment_flag, type: BOOL }
+          - { name: created_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      - table: stg_fin_rate_card
+        columns:
+          - { name: rate_card_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: service_code, type: STRING }
+          - { name: rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: currency, type: STRING }
+          - { name: effective_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: expiry_ts, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: load_date, type: DATE }
+      # -- Delta feeds (8) --
+      - table: stg_fin_timesheet_delta
+        columns:
+          - { name: timesheet_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: work_date, type: STRING }
+          - { name: program_id, type: INT64 }
+          - { name: billable_minutes, type: INT64 }
+          - { name: nonbillable_minutes, type: INT64 }
+          - { name: approved_flag, type: BOOL }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_fin_payroll_adj_delta
+        columns:
+          - { name: adjustment_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: period_month, type: STRING }
+          - { name: adj_type, type: STRING }
+          - { name: amount, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_crm_sla_credit_delta
+        columns:
+          - { name: sla_credit_id, type: INT64 }
+          - { name: program_id, type: INT64 }
+          - { name: sla_target_id, type: INT64 }
+          - { name: period_month, type: STRING }
+          - { name: credit_amount, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: reason, type: STRING }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_tel_callback_request_delta
+        columns:
+          - { name: callback_id, type: INT64 }
+          - { name: call_id, type: INT64 }
+          - { name: queue_id, type: INT64 }
+          - { name: requested_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: scheduled_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: completed_flag, type: BOOL }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_wfm_shift_swap_delta
+        columns:
+          - { name: swap_id, type: INT64 }
+          - { name: requesting_agent_id, type: INT64 }
+          - { name: accepting_agent_id, type: INT64 }
+          - { name: schedule_id, type: INT64 }
+          - { name: swap_date, type: STRING }
+          - { name: status, type: STRING }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_tkt_worklog_delta
+        columns:
+          - { name: worklog_id, type: INT64 }
+          - { name: ticket_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: minutes_logged, type: INT64 }
+          - { name: log_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: note, type: STRING }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_hr_attrition_event_delta
+        columns:
+          - { name: attrition_event_id, type: INT64 }
+          - { name: agent_id, type: INT64 }
+          - { name: notice_epoch, type: INT64, description: "epoch SECONDS (legacy)" }
+          - { name: last_day, type: STRING }
+          - { name: attrition_type, type: STRING }
+          - { name: reason_code, type: STRING }
+          - { name: regrettable_flag, type: BOOL }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      - table: stg_fin_rate_card_change_delta
+        columns:
+          - { name: rate_change_id, type: INT64 }
+          - { name: rate_card_id, type: INT64 }
+          - { name: old_rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: new_rate, type: "NUMERIC(12,4)", scale: 4 }
+          - { name: change_reason, type: STRING }
+          - { name: op, type: STRING }
+          - { name: change_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: extract_ts, type: STRING }
+      # -- File feeds (10) — partitioned + clustered + expiring --
+      - table: stg_file_interaction_export
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: interaction_ref, type: STRING }
+          - { name: channel, type: STRING }
+          - { name: client_interaction_id, type: STRING }
+          - { name: agent_email, type: STRING }
+          - { name: start_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: end_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: outcome, type: STRING }
+          - { name: customer_ref, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_survey_csat
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: survey_id, type: STRING }
+          - { name: interaction_ref, type: STRING }
+          - { name: survey_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: csat_score, type: INT64 }
+          - { name: nps_score, type: INT64 }
+          - { name: fcr_claimed, type: BOOL }
+          - { name: verbatim, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_qa_forms
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: qa_form_id, type: STRING }
+          - { name: interaction_ref, type: STRING }
+          - { name: evaluator_email, type: STRING }
+          - { name: evaluated_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: form_version, type: STRING }
+          - { name: sections, type: "ARRAY<STRUCT<section_code STRING, max_points INT64, scored_points INT64>>" }
+          - { name: auto_fail, type: BOOL }
+          - { name: overall_pct, type: "NUMERIC(5,2)", scale: 2 }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_ivr_logs
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: event_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: session_ref, type: STRING }
+          - { name: menu_path, type: STRING }
+          - { name: key_pressed, type: STRING }
+          - { name: raw_tail, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_chat_transcripts
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: chat_ref, type: STRING }
+          - { name: queue_code, type: STRING }
+          - { name: agent_email, type: STRING }
+          - { name: started_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: ended_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: messages, type: "ARRAY<STRUCT<sender STRING, ts_ms INT64, text STRING>>" }
+          - { name: metadata, type: JSON }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_roster
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: employee_no, type: STRING }
+          - { name: agent_email, type: STRING }
+          - { name: client_login, type: STRING }
+          - { name: role_on_program, type: STRING }
+          - { name: active_flag, type: BOOL }
+          - { name: as_of_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_telco_invoice
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: telco_invoice_id, type: STRING }
+          - { name: carrier, type: STRING }
+          - { name: circuit_id, type: STRING }
+          - { name: usage_minutes, type: INT64 }
+          - { name: charge_amount, type: "NUMERIC(12,2)", scale: 2 }
+          - { name: bill_period, type: STRING }
+          - { name: billed_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_dialer_result
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: attempt_id, type: STRING }
+          - { name: campaign_code, type: STRING }
+          - { name: phone_hash, type: STRING }
+          - { name: agent_id, type: INT64 }
+          - { name: attempt_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: result_code, type: STRING }
+          - { name: talk_seconds, type: INT64 }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_email_interaction
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: email_ref, type: STRING }
+          - { name: mailbox, type: STRING }
+          - { name: agent_email, type: STRING }
+          - { name: received_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: first_reply_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: resolved_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: subject_category, type: STRING }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }
+      - table: stg_file_speech_analytics
+        cluster_by: [client_code]
+        table_options: { partition_expiration_days: 365 }
+        columns:
+          - { name: recording_id, type: STRING }
+          - { name: call_ref, type: STRING }
+          - { name: analyzed_ms, type: INT64, description: "epoch MILLISECONDS (legacy)" }
+          - { name: sentiment_score, type: FLOAT64 }
+          - { name: silence_pct, type: FLOAT64 }
+          - { name: talk_over_count, type: INT64 }
+          - { name: keywords, type: "ARRAY<STRING>" }
+          - { name: client_code, type: STRING }
+          - { name: feed_date, type: DATE }

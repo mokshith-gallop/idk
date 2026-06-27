@@ -1,0 +1,28 @@
+# ===========================================================================
+# synth_ddl_perf_ods.yaml — Synthetic data for ODS hot-path table
+# Seeds ods_interaction (clustered by agent_id, client_code) for scan
+# reduction benchmarking.
+# ===========================================================================
+
+dataset: ods
+expire_hours: 24
+max_bytes_billed: 50000000000
+
+tables:
+  - name: ods_interaction
+    rows: 200000
+    cluster_by: [agent_id, client_code]
+    columns:
+      - { name: interaction_id, gen: "CONCAT('I', CAST(id AS STRING))" }
+      - { name: channel, gen: "['VOICE','CHAT','EMAIL'][OFFSET(MOD(id, 3))]" }
+      - { name: client_code, gen: "CONCAT('CLI', CAST(MOD(id, 10) + 1 AS STRING))" }
+      - { name: program_id, gen: "MOD(id, 24) + 201" }
+      - { name: queue_id, gen: "MOD(id, 60) + 301" }
+      - { name: agent_id, gen: "MOD(id, 1800) + 10001" }
+      - { name: customer_ref, gen: "CONCAT('CUST', CAST(MOD(id, 50000) AS STRING))" }
+      - { name: start_ts, gen: "TIMESTAMP('2026-01-01 08:00:00')" }
+      - { name: end_ts, gen: "TIMESTAMP('2026-01-01 08:05:00')" }
+      - { name: handle_seconds, gen: "180 + MOD(id, 600)" }
+      - { name: resolved_flag, gen: "MOD(id, 10) <> 0" }
+      - { name: source_system, gen: "'TELEPHONY'" }
+      - { name: event_date, gen: "DATE_ADD(DATE '2026-01-01', INTERVAL MOD(id, 180) DAY)" }

@@ -1,0 +1,239 @@
+# ===========================================================================
+# synth_ddl_perf.yaml — Synthetic data seeder for DDL perf benchmarking
+#
+# Populates the 10 hot-path clustered tables + dimension tables + MV base
+# table with enough rows to produce measurable scan differences.
+# Uses lib/synth.py GENERATE_ARRAY pattern (entirely in-BQ, no egress).
+#
+# Tables seeded:
+#   - 3 require_partition_filter tables: fact_interaction, fact_agent_activity,
+#     fact_queue_interval (must have data in multiple partitions)
+#   - 7 additional clustered hot-path tables
+#   - dim tables (small, for MV/view resolution)
+#   - agg_agent_daily (MV base table)
+#
+# Usage: python -m lib.synth fixtures/synth_ddl_perf.yaml
+# ===========================================================================
+
+dataset: dm
+expire_hours: 24
+max_bytes_billed: 50000000000
+
+tables:
+  # ── Dimensions (small, needed for view/MV resolution) ──────────────────
+  - name: dim_date
+    rows: 3650
+    columns:
+      - { name: date_key, gen: "20200101 + id" }
+      - { name: full_date, gen: "CAST(PARSE_DATE('%Y%m%d', CAST(20200101 + id AS STRING)) AS STRING)" }
+      - { name: day_of_week, gen: "MOD(id, 7) + 1" }
+      - { name: day_name, gen: "['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][OFFSET(MOD(id, 7))]" }
+      - { name: week_of_year, gen: "MOD(id, 52) + 1" }
+      - { name: month_no, gen: "MOD(id, 12) + 1" }
+      - { name: month_name, gen: "'Month'" }
+      - { name: quarter_no, gen: "MOD(id, 4) + 1" }
+      - { name: year_no, gen: "2020 + CAST(id / 365 AS INT64)" }
+      - { name: is_weekend, gen: "MOD(id, 7) >= 5" }
+      - { name: is_holiday_us, gen: "FALSE" }
+      - { name: fiscal_period, gen: "CONCAT('FY', CAST(2020 + CAST(id / 365 AS INT64) AS STRING), '-Q', CAST(MOD(id, 4) + 1 AS STRING))" }
+
+  - name: dim_agent
+    rows: 1800
+    columns:
+      - { name: agent_sk, gen: sequence }
+      - { name: agent_id, gen: "id + 10000" }
+      - { name: employee_no, gen: "CONCAT('E', CAST(id AS STRING))" }
+      - { name: full_name, gen: "CONCAT('Agent ', CAST(id AS STRING))" }
+      - { name: job_grade, gen: "['A1','A2','SME','TL','OM'][OFFSET(MOD(id, 5))]" }
+      - { name: employment_type, gen: "['FT','PT','CONTRACT'][OFFSET(MOD(id, 3))]" }
+      - { name: org_unit_id, gen: "MOD(id, 130) + 1" }
+      - { name: team_name, gen: "CONCAT('Team ', CAST(MOD(id, 20) AS STRING))" }
+      - { name: site_code, gen: "['MNL1','BLR2','MTY3'][OFFSET(MOD(id, 3))]" }
+      - { name: status, gen: "'ACTIVE'" }
+      - { name: hire_date_key, gen: "20200101 + MOD(id, 365)" }
+      - { name: is_current, gen: "TRUE" }
+
+  - name: dim_client
+    rows: 10
+    columns:
+      - { name: client_sk, gen: sequence }
+      - { name: client_id, gen: "id + 100" }
+      - { name: client_code, gen: "CONCAT('CLI', CAST(id AS STRING))" }
+      - { name: client_name, gen: "CONCAT('Client ', CAST(id AS STRING))" }
+      - { name: industry, gen: "'TELCO'" }
+      - { name: hq_country, gen: "'US'" }
+      - { name: primary_contact_name, gen: "'John Doe'" }
+      - { name: primary_contact_email, gen: "'john@example.com'" }
+      - { name: status, gen: "'ACTIVE'" }
+
+  - name: dim_program
+    rows: 24
+    columns:
+      - { name: program_sk, gen: sequence }
+      - { name: program_id, gen: "id + 200" }
+      - { name: program_code, gen: "CONCAT('PRG', CAST(id AS STRING))" }
+      - { name: program_name, gen: "CONCAT('Program ', CAST(id AS STRING))" }
+      - { name: client_id, gen: "MOD(id, 10) + 101" }
+      - { name: line_of_business, gen: "'CUSTOMER_CARE'" }
+      - { name: channel_mix, gen: "'OMNICHANNEL'" }
+      - { name: site_code, gen: "['MNL1','BLR2','MTY3'][OFFSET(MOD(id, 3))]" }
+      - { name: billing_model, gen: "'PER_FTE'" }
+      - { name: status, gen: "'ACTIVE'" }
+      - { name: go_live_date_key, gen: "20200115" }
+
+  - name: dim_queue
+    rows: 60
+    columns:
+      - { name: queue_sk, gen: sequence }
+      - { name: queue_id, gen: "id + 300" }
+      - { name: queue_code, gen: "CONCAT('Q', CAST(id AS STRING))" }
+      - { name: queue_name, gen: "CONCAT('Queue ', CAST(id AS STRING))" }
+      - { name: program_id, gen: "MOD(id, 24) + 201" }
+      - { name: media_type, gen: "['VOICE','CHAT','EMAIL'][OFFSET(MOD(id, 3))]" }
+      - { name: priority, gen: "MOD(id, 5) + 1" }
+
+  # ── Hot-path fact tables (clustered + partitioned) ─────────────────────
+
+  - name: fact_interaction
+    rows: 500000
+    partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20200101, 20301231, 1))"
+    cluster_by: [agent_sk, channel, client_sk, customer_ref]
+    columns:
+      - { name: interaction_id, gen: "CAST(id AS STRING)" }
+      - { name: client_sk, gen: "MOD(id, 10) + 1" }
+      - { name: program_sk, gen: "MOD(id, 24) + 1" }
+      - { name: queue_sk, gen: "MOD(id, 60) + 1" }
+      - { name: agent_sk, gen: "MOD(id, 1800) + 1" }
+      - { name: customer_ref, gen: "CONCAT('CUST', CAST(MOD(id, 50000) AS STRING))" }
+      - { name: start_ts, gen: "TIMESTAMP('2026-01-01 08:00:00')" }
+      - { name: end_ts, gen: "TIMESTAMP('2026-01-01 08:05:00')" }
+      - { name: handle_seconds, gen: "180 + MOD(id, 600)" }
+      - { name: resolved_flag, gen: "MOD(id, 10) <> 0" }
+      - { name: source_system, gen: "'TELEPHONY'" }
+      - { name: date_key, gen: "20260101 + MOD(id, 180)" }
+      - { name: channel, gen: "['VOICE','CHAT','EMAIL'][OFFSET(MOD(id, 3))]" }
+
+  - name: fact_agent_activity
+    rows: 500000
+    partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20200101, 20301231, 1))"
+    cluster_by: [agent_sk, state_code]
+    columns:
+      - { name: agent_sk, gen: "MOD(id, 1800) + 1" }
+      - { name: state_code, gen: "['READY','TALK','HOLD','ACW','AUX_BREAK'][OFFSET(MOD(id, 5))]" }
+      - { name: state_seconds, gen: "60 + MOD(id, 3600)" }
+      - { name: occurrence_count, gen: "1 + MOD(id, 50)" }
+      - { name: first_state_ts, gen: "TIMESTAMP('2026-01-01 08:00:00')" }
+      - { name: last_state_ts, gen: "TIMESTAMP('2026-01-01 17:00:00')" }
+      - { name: date_key, gen: "20260101 + MOD(id, 180)" }
+
+  - name: fact_queue_interval
+    rows: 200000
+    partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20200101, 20301231, 1))"
+    cluster_by: [queue_sk]
+    columns:
+      - { name: queue_sk, gen: "MOD(id, 60) + 1" }
+      - { name: interval_start_ts, gen: "TIMESTAMP('2026-01-01 08:00:00')" }
+      - { name: offered, gen: "10 + MOD(id, 100)" }
+      - { name: answered, gen: "8 + MOD(id, 90)" }
+      - { name: abandoned, gen: "MOD(id, 10)" }
+      - { name: answered_in_sl, gen: "6 + MOD(id, 80)" }
+      - { name: sl_threshold_sec, gen: "20" }
+      - { name: avg_speed_answer_sec, type: NUMERIC, gen: "ROUND(RAND() * 30, 2)" }
+      - { name: avg_handle_sec, type: NUMERIC, gen: "ROUND(180 + RAND() * 300, 2)" }
+      - { name: date_key, gen: "20260101 + MOD(id, 180)" }
+
+  - name: fact_csat_survey
+    rows: 100000
+    partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20200101, 20301231, 1))"
+    cluster_by: [program_sk, agent_sk]
+    columns:
+      - { name: survey_id, gen: "CONCAT('SRV', CAST(id AS STRING))" }
+      - { name: interaction_id, gen: "CAST(MOD(id, 500000) AS STRING)" }
+      - { name: client_sk, gen: "MOD(id, 10) + 1" }
+      - { name: program_sk, gen: "MOD(id, 24) + 1" }
+      - { name: agent_sk, gen: "MOD(id, 1800) + 1" }
+      - { name: survey_ts, gen: "TIMESTAMP('2026-01-01 12:00:00')" }
+      - { name: csat_score, gen: "1 + MOD(id, 5)" }
+      - { name: nps_score, gen: "MOD(id, 11)" }
+      - { name: fcr_claimed, gen: "MOD(id, 3) = 0" }
+      - { name: date_key, gen: "20260101 + MOD(id, 180)" }
+
+  - name: fact_billing_line
+    rows: 50000
+    partition_by: "DATE_TRUNC(period_month, MONTH)"
+    cluster_by: [client_sk, program_sk]
+    columns:
+      - { name: invoice_line_id, gen: sequence }
+      - { name: invoice_id, gen: "MOD(id, 290) + 1" }
+      - { name: client_sk, gen: "MOD(id, 10) + 1" }
+      - { name: program_sk, gen: "MOD(id, 24) + 1" }
+      - { name: service_code, gen: "'VOICE_IN'" }
+      - { name: qty, type: NUMERIC, gen: "ROUND(RAND() * 1000, 2)" }
+      - { name: unit_rate, type: NUMERIC, gen: "ROUND(RAND() * 50, 4)" }
+      - { name: line_amount, type: NUMERIC, gen: "ROUND(RAND() * 50000, 2)" }
+      - { name: adjustment_flag, gen: "FALSE" }
+      - { name: invoice_status, gen: "'ISSUED'" }
+      - { name: period_month, gen: "DATE_ADD(DATE '2026-01-01', INTERVAL MOD(id, 12) MONTH)" }
+
+  - name: fact_adherence_daily
+    rows: 200000
+    partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20200101, 20301231, 1))"
+    cluster_by: [agent_sk]
+    columns:
+      - { name: agent_sk, gen: "MOD(id, 1800) + 1" }
+      - { name: scheduled_minutes, gen: "480" }
+      - { name: worked_minutes, gen: "400 + MOD(id, 80)" }
+      - { name: exception_minutes, gen: "MOD(id, 30)" }
+      - { name: timeoff_minutes, gen: "MOD(id, 60)" }
+      - { name: adherence_pct, type: NUMERIC, gen: "ROUND(85 + RAND() * 15, 2)" }
+      - { name: occupancy_pct, type: NUMERIC, gen: "ROUND(70 + RAND() * 25, 2)" }
+      - { name: date_key, gen: "20260101 + MOD(id, 180)" }
+
+  - name: fact_ticket
+    rows: 60000
+    partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20200101, 20301231, 1))"
+    cluster_by: [program_sk, assigned_agent_sk]
+    columns:
+      - { name: ticket_id, gen: sequence }
+      - { name: program_sk, gen: "MOD(id, 24) + 1" }
+      - { name: category_code, gen: "'BILLING'" }
+      - { name: assigned_agent_sk, gen: "MOD(id, 1800) + 1" }
+      - { name: priority, gen: "['P1','P2','P3','P4'][OFFSET(MOD(id, 4))]" }
+      - { name: status, gen: "['OPEN','RESOLVED','CLOSED'][OFFSET(MOD(id, 3))]" }
+      - { name: created_ts, gen: "TIMESTAMP('2026-01-01')" }
+      - { name: resolved_ts, gen: "TIMESTAMP('2026-01-02')" }
+      - { name: resolution_minutes, gen: "60 + MOD(id, 480)" }
+      - { name: sla_breached_flag, gen: "MOD(id, 10) = 0" }
+      - { name: touch_count, gen: "1 + MOD(id, 8)" }
+      - { name: date_key, gen: "20260101 + MOD(id, 180)" }
+
+  - name: agg_agent_daily
+    rows: 200000
+    partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20200101, 20301231, 1))"
+    cluster_by: [agent_sk, site_code]
+    columns:
+      - { name: agent_sk, gen: "MOD(id, 1800) + 1" }
+      - { name: site_code, gen: "['MNL1','BLR2','MTY3'][OFFSET(MOD(id, 3))]" }
+      - { name: interactions_handled, gen: "10 + MOD(id, 50)" }
+      - { name: avg_handle_seconds, type: NUMERIC, gen: "ROUND(180 + RAND() * 300, 2)" }
+      - { name: talk_seconds, gen: "3600 + MOD(id, 7200)" }
+      - { name: acw_seconds, gen: "600 + MOD(id, 1800)" }
+      - { name: aux_seconds, gen: "300 + MOD(id, 3600)" }
+      - { name: adherence_pct, type: NUMERIC, gen: "ROUND(85 + RAND() * 15, 2)" }
+      - { name: occupancy_pct, type: NUMERIC, gen: "ROUND(70 + RAND() * 25, 2)" }
+      - { name: date_key, gen: "20260101 + MOD(id, 180)" }
+
+  - name: agg_queue_hourly
+    rows: 100000
+    partition_by: "RANGE_BUCKET(date_key, GENERATE_ARRAY(20200101, 20301231, 1))"
+    cluster_by: [queue_sk]
+    columns:
+      - { name: queue_sk, gen: "MOD(id, 60) + 1" }
+      - { name: hour_of_day, gen: "MOD(id, 24)" }
+      - { name: offered, gen: "5 + MOD(id, 50)" }
+      - { name: answered, gen: "4 + MOD(id, 45)" }
+      - { name: abandoned, gen: "MOD(id, 5)" }
+      - { name: sl_pct, type: NUMERIC, gen: "ROUND(75 + RAND() * 25, 2)" }
+      - { name: forecast_volume, gen: "5 + MOD(id, 60)" }
+      - { name: volume_variance_pct, type: NUMERIC, gen: "ROUND(-10 + RAND() * 20, 2)" }
+      - { name: date_key, gen: "20260101 + MOD(id, 180)" }
