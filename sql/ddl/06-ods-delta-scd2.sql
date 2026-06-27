@@ -1,16 +1,27 @@
 -- ----------------------------------------------------------------------------
--- 06-ods-delta-scd2: ods: delta-merged entities (8) + SCD-2 histories (3)
--- Translated from: hive/ddl/06-ods-delta-scd2.hql
--- Hive constructs dropped: STORED AS PARQUET, TBLPROPERTIES.
--- Type map: BIGINT→INT64, INT→INT64, TIMESTAMP→TIMESTAMP,
---   BOOLEAN→BOOL, DECIMAL(p,s)→NUMERIC(p,s).
--- Delta-merge partition columns (work_month, period_month, swap_month,
---   event_month, event_date, snapshot_date) promoted from STRING to DATE.
--- SCD-2 partition columns (eff_from_year INT) stay as INT64.
--- All partition columns appended at end. No BQ partitioning.
+-- 06-ods-delta-scd2.sql  — ods: delta-merged entities (8) + SCD-2 histories (3)
+-- Migrated from: hive/ddl/06-ods-delta-scd2.hql
+-- Source: NBCS CDH 6.3.4 legacy warehouse → BigQuery
+--
+-- Type mappings applied:
+--   BIGINT → INT64, INT → INT64, STRING → STRING, BOOLEAN → BOOL,
+--   TIMESTAMP → TIMESTAMP, DECIMAL(p,s) → NUMERIC(p,s)
+--
+-- Hive constructs dropped:
+--   STORED AS PARQUET, TBLPROPERTIES ('parquet.compression'='SNAPPY')
+--
+-- Partition convention:
+--   Hive STRING partition columns promoted to DATE and appended at end.
+--   YYYY-MM month columns (work_month, period_month, swap_month,
+--   event_month) promoted to first-of-month DATE.
+--   Date columns (event_date, snapshot_date) promoted to DATE.
+--   SCD-2 tables: eff_from_year INT → INT64, appended at end.
+--   All ODS delta/SCD-2 tables are UNPARTITIONED in BigQuery.
 -- ----------------------------------------------------------------------------
 
--- ===== Delta-merged entities (8) =====
+-- ============================================================================
+-- Delta-merged entities (8)
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS ods.ods_timesheet (
   timesheet_id                INT64,
@@ -21,6 +32,8 @@ CREATE TABLE IF NOT EXISTS ods.ods_timesheet (
   nonbillable_minutes         INT64,
   approved_flag               BOOL,
   last_change_ts              TIMESTAMP,
+  -- former partition column work_month promoted from STRING to DATE
+  -- (YYYY-MM → first-of-month DATE)
   work_month                  DATE
 );
 
@@ -28,8 +41,9 @@ CREATE TABLE IF NOT EXISTS ods.ods_payroll_adjustment (
   adjustment_id               INT64,
   agent_id                    INT64,
   adj_type                    STRING,
-  amount                      NUMERIC(12, 2),
+  amount                      NUMERIC(12,2),
   last_change_ts              TIMESTAMP,
+  -- former partition column period_month promoted from STRING to DATE
   period_month                DATE
 );
 
@@ -37,7 +51,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_sla_credit (
   sla_credit_id               INT64,
   program_id                  INT64,
   sla_target_id               INT64,
-  credit_amount               NUMERIC(12, 2),
+  credit_amount               NUMERIC(12,2),
   reason                      STRING,
   last_change_ts              TIMESTAMP,
   period_month                DATE
@@ -62,6 +76,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_shift_swap (
   swap_date                   STRING,
   status                      STRING,
   last_change_ts              TIMESTAMP,
+  -- former partition column swap_month promoted from STRING to DATE
   swap_month                  DATE
 );
 
@@ -85,6 +100,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_attrition_event (
   reason_code                 STRING,
   regrettable_flag            BOOL,
   last_change_ts              TIMESTAMP,
+  -- former partition column event_month promoted from STRING to DATE
   event_month                 DATE
 );
 
@@ -92,7 +108,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_rate_card (
   rate_card_id                INT64,
   program_id                  INT64,
   service_code                STRING,
-  rate                        NUMERIC(12, 4),
+  rate                        NUMERIC(12,4),
   currency                    STRING,
   effective_ts                TIMESTAMP,
   expiry_ts                   TIMESTAMP,
@@ -100,7 +116,10 @@ CREATE TABLE IF NOT EXISTS ods.ods_rate_card (
   snapshot_date               DATE
 );
 
--- ===== SCD-2 histories (3) — eff_from_year stays INT64 (not date-like) =====
+-- ============================================================================
+-- SCD-2 histories (3)
+-- Partition column eff_from_year stays INT64 (not date-like).
+-- ============================================================================
 
 CREATE TABLE IF NOT EXISTS ods.ods_agent_scd2 (
   agent_history_id            STRING,
@@ -113,6 +132,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_agent_scd2 (
   eff_from_ts                 TIMESTAMP,
   eff_to_ts                   TIMESTAMP,
   is_current                  BOOL,
+  -- former partition column eff_from_year INT → INT64
   eff_from_year               INT64
 );
 

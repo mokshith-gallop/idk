@@ -1,13 +1,24 @@
 -- ----------------------------------------------------------------------------
--- 05-ods-cleanse: ods: cleansed/conformed entities (15)
--- Translated from: hive/ddl/05-ods-cleanse.hql
--- Hive constructs dropped: STORED AS PARQUET, TBLPROPERTIES.
--- Type map: BIGINT→INT64, INT→INT64, TIMESTAMP→TIMESTAMP,
---   BOOLEAN→BOOL, DECIMAL(p,s)→NUMERIC(p,s).
--- Partition columns (snapshot_date, event_date, sched_date, call_date)
---   promoted from STRING to DATE and appended at end.
--- ods_interaction clustered per locked Performance Optimization.
--- No BQ partitioning on ODS cleanse tables (unpartitioned).
+-- 05-ods-cleanse.sql  — ods: cleansed/conformed entities (15)
+-- Migrated from: hive/ddl/05-ods-cleanse.hql
+-- Source: NBCS CDH 6.3.4 legacy warehouse → BigQuery
+--
+-- Type mappings applied:
+--   BIGINT → INT64, INT → INT64, STRING → STRING, BOOLEAN → BOOL,
+--   TIMESTAMP → TIMESTAMP, DECIMAL(p,s) → NUMERIC(p,s)
+--
+-- Hive constructs dropped:
+--   STORED AS PARQUET, TBLPROPERTIES ('parquet.compression'='SNAPPY')
+--
+-- Partition convention:
+--   Hive STRING partition columns (snapshot_date, event_date, sched_date,
+--   call_date) promoted to DATE and appended at end of column list.
+--   ODS cleanse tables are UNPARTITIONED in BigQuery (partition columns
+--   become regular DATE columns).
+--
+-- Clustering:
+--   ods_interaction: CLUSTER BY (agent_id, client_code) per locked
+--   Performance Optimization decision.
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS ods.ods_program (
@@ -21,6 +32,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_program (
   status                      STRING,
   go_live_ts                  TIMESTAMP,
   updated_ts                  TIMESTAMP,
+  -- former partition column promoted from STRING to DATE
   snapshot_date               DATE
 );
 
@@ -44,8 +56,8 @@ CREATE TABLE IF NOT EXISTS ods.ods_contract_line (
   line_no                     INT64,
   service_code                STRING,
   uom                         STRING,
-  unit_rate                   NUMERIC(12, 4),
-  min_commit                  NUMERIC(12, 2),
+  unit_rate                   NUMERIC(12,4),
+  min_commit                  NUMERIC(12,2),
   effective_ts                TIMESTAMP,
   snapshot_date               DATE
 );
@@ -83,6 +95,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_schedule (
   paid_minutes                INT64,
   activity_code               STRING,
   site_code                   STRING,
+  -- former partition column sched_date promoted from STRING to DATE
   sched_date                  DATE
 );
 
@@ -114,6 +127,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_call (
   abandoned_flag              BOOL,
   disposition_code            STRING,
   recording_id                STRING,
+  -- former partition column call_date promoted from STRING to DATE
   call_date                   DATE
 );
 
@@ -179,10 +193,12 @@ CREATE TABLE IF NOT EXISTS ods.ods_qa_evaluation (
   scored_points               INT64,
   max_points                  INT64,
   auto_fail                   BOOL,
-  overall_pct                 NUMERIC(5, 2),
+  overall_pct                 NUMERIC(5,2),
   event_date                  DATE
 );
 
+-- ods_interaction: CLUSTER BY (agent_id, client_code) per locked
+-- Performance Optimization decision.
 CREATE TABLE IF NOT EXISTS ods.ods_interaction (
   interaction_id              STRING,
   channel                     STRING,
@@ -198,7 +214,7 @@ CREATE TABLE IF NOT EXISTS ods.ods_interaction (
   source_system               STRING,
   event_date                  DATE
 )
-CLUSTER BY (agent_id, client_code);
+CLUSTER BY agent_id, client_code;
 
 CREATE TABLE IF NOT EXISTS ods.ods_dialer_attempt (
   attempt_id                  STRING,
