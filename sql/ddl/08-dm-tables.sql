@@ -1,10 +1,11 @@
 -- ----------------------------------------------------------------------------
 -- 08-dm-tables: dm: dimensions (9), facts (9), physical aggregates (5)
 -- = 23 tables total.
--- Migrated from Hive managed PARQUET tables to native BigQuery tables.
--- Dropped: STORED AS PARQUET, TBLPROPERTIES, CLUSTERED BY...INTO N BUCKETS.
+-- Translated from: hive/ddl/08-dm-tables.hql
+-- Hive constructs dropped: STORED AS PARQUET, TBLPROPERTIES,
+--   CLUSTERED BY ... INTO N BUCKETS.
 -- Type map: BIGINT→INT64, INT→INT64, STRING→STRING, BOOLEAN→BOOL,
---           TIMESTAMP→TIMESTAMP, DECIMAL(p,s)→NUMERIC(p,s).
+--   TIMESTAMP→TIMESTAMP, DECIMAL(p,s)→NUMERIC(p,s).
 --
 -- Partition strategy:
 --   date_key INT facts/aggs → RANGE_BUCKET integer-range partition.
@@ -19,9 +20,7 @@
 -- materialized views in 08b-dm-materialized-views.sql.
 -- ----------------------------------------------------------------------------
 
--- =========================================================================
--- Dimensions (9) — unpartitioned
--- =========================================================================
+-- ===== Dimensions (9) — unpartitioned =====
 
 CREATE TABLE IF NOT EXISTS dm.dim_date (
   date_key                    INT64,
@@ -131,11 +130,9 @@ CREATE TABLE IF NOT EXISTS dm.dim_disposition (
   billable_flag               BOOL
 );
 
--- =========================================================================
--- Facts (9) — partitioned + clustered
+-- ===== Facts (9) — partitioned + clustered =====
 -- fact_interaction: multi-col Hive partition (date_key INT, channel STRING)
 --   → BQ: partition on date_key only; channel demoted to cluster col.
--- =========================================================================
 
 CREATE TABLE IF NOT EXISTS dm.fact_interaction (
   interaction_id              STRING,
@@ -181,8 +178,8 @@ CREATE TABLE IF NOT EXISTS dm.fact_queue_interval (
   abandoned                   INT64,
   answered_in_sl              INT64,
   sl_threshold_sec            INT64,
-  avg_speed_answer_sec        NUMERIC(8,2),
-  avg_handle_sec              NUMERIC(8,2),
+  avg_speed_answer_sec        NUMERIC(8, 2),
+  avg_handle_sec              NUMERIC(8, 2),
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
@@ -214,7 +211,7 @@ CREATE TABLE IF NOT EXISTS dm.fact_qa_evaluation (
   evaluated_ts                TIMESTAMP,
   scored_points               INT64,
   max_points                  INT64,
-  overall_pct                 NUMERIC(5,2),
+  overall_pct                 NUMERIC(5, 2),
   auto_fail                   BOOL,
   date_key                    INT64
 )
@@ -226,9 +223,9 @@ CREATE TABLE IF NOT EXISTS dm.fact_billing_line (
   client_sk                   INT64,
   program_sk                  INT64,
   service_code                STRING,
-  qty                         NUMERIC(12,2),
-  unit_rate                   NUMERIC(12,4),
-  line_amount                 NUMERIC(14,2),
+  qty                         NUMERIC(12, 2),
+  unit_rate                   NUMERIC(12, 4),
+  line_amount                 NUMERIC(14, 2),
   adjustment_flag             BOOL,
   invoice_status              STRING,
   period_month                DATE
@@ -242,8 +239,8 @@ CREATE TABLE IF NOT EXISTS dm.fact_adherence_daily (
   worked_minutes              INT64,
   exception_minutes           INT64,
   timeoff_minutes             INT64,
-  adherence_pct               NUMERIC(5,2),
-  occupancy_pct               NUMERIC(5,2),
+  adherence_pct               NUMERIC(5, 2),
+  occupancy_pct               NUMERIC(5, 2),
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
@@ -278,21 +275,19 @@ CREATE TABLE IF NOT EXISTS dm.fact_ivr_path (
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1));
 
--- =========================================================================
--- Physical aggregates (5)
+-- ===== Physical aggregates (5) =====
 -- agg_agent_weekly and agg_site_daily are NOT here — they become MVs in 08b.
--- =========================================================================
 
 CREATE TABLE IF NOT EXISTS dm.agg_agent_daily (
   agent_sk                    INT64,
   site_code                   STRING,
   interactions_handled        INT64,
-  avg_handle_seconds          NUMERIC(8,2),
+  avg_handle_seconds          NUMERIC(8, 2),
   talk_seconds                INT64,
   acw_seconds                 INT64,
   aux_seconds                 INT64,
-  adherence_pct               NUMERIC(5,2),
-  occupancy_pct               NUMERIC(5,2),
+  adherence_pct               NUMERIC(5, 2),
+  occupancy_pct               NUMERIC(5, 2),
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
@@ -303,9 +298,9 @@ CREATE TABLE IF NOT EXISTS dm.agg_program_monthly (
   program_sk                  INT64,
   line_of_business            STRING,
   interactions                INT64,
-  avg_handle_seconds          NUMERIC(8,2),
-  avg_csat                    NUMERIC(5,2),
-  billed_amount               NUMERIC(14,2),
+  avg_handle_seconds          NUMERIC(8, 2),
+  avg_csat                    NUMERIC(5, 2),
+  billed_amount               NUMERIC(14, 2),
   grouping_level              INT64,
   period_month                DATE
 )
@@ -317,9 +312,9 @@ CREATE TABLE IF NOT EXISTS dm.agg_queue_hourly (
   offered                     INT64,
   answered                    INT64,
   abandoned                   INT64,
-  sl_pct                      NUMERIC(5,2),
+  sl_pct                      NUMERIC(5, 2),
   forecast_volume             INT64,
-  volume_variance_pct         NUMERIC(7,2),
+  volume_variance_pct         NUMERIC(7, 2),
   date_key                    INT64
 )
 PARTITION BY RANGE_BUCKET(date_key, GENERATE_ARRAY(20000101, 20991231, 1))
@@ -330,9 +325,9 @@ CREATE TABLE IF NOT EXISTS dm.agg_csat_rollup_monthly (
   program_sk                  INT64,
   site_code                   STRING,
   surveys                     INT64,
-  avg_csat                    NUMERIC(5,2),
-  pct_promoters               NUMERIC(5,2),
-  pct_detractors              NUMERIC(5,2),
+  avg_csat                    NUMERIC(5, 2),
+  pct_promoters               NUMERIC(5, 2),
+  pct_detractors              NUMERIC(5, 2),
   grouping_id                 INT64,
   period_month                DATE
 )
@@ -341,10 +336,10 @@ PARTITION BY DATE_TRUNC(period_month, MONTH);
 CREATE TABLE IF NOT EXISTS dm.agg_billing_monthly (
   client_sk                   INT64,
   program_sk                  INT64,
-  billed_amount               NUMERIC(14,2),
-  sla_credit_amount           NUMERIC(12,2),
-  telco_cost_amount           NUMERIC(12,2),
-  net_revenue                 NUMERIC(14,2),
+  billed_amount               NUMERIC(14, 2),
+  sla_credit_amount           NUMERIC(12, 2),
+  telco_cost_amount           NUMERIC(12, 2),
+  net_revenue                 NUMERIC(14, 2),
   period_month                DATE
 )
 PARTITION BY DATE_TRUNC(period_month, MONTH);
