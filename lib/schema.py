@@ -36,6 +36,9 @@ SCHEMA = {
                 "properties": {
                     "table": {"type": "string"},
                     "source_table": {"type": "string"},
+                    # Object-type fidelity: assert the landed object is a TABLE / VIEW /
+                    # MATERIALIZED_VIEW, so a source table silently flipped to a view fails.
+                    "expect_object_type": {"enum": ["TABLE", "VIEW", "MATERIALIZED_VIEW"]},
                     "partition_by": {"type": "string"},
                     "cluster_by": {"type": "array", "items": {"type": "string"}},
                     "no_hive_directives": {"type": "boolean"},
@@ -108,6 +111,14 @@ def run(suite: dict, ctx: Context) -> SuiteResult:
             chk(fq, Status.FAIL, "table missing from target dataset")
             continue
         info = ctx.target.introspect_table(dataset, name)
+
+        # Object-type fidelity: the landed object must be the declared TABLE / VIEW /
+        # MATERIALIZED_VIEW (a source table silently flipped to a view, or vice versa, fails).
+        if "expect_object_type" in tbl:
+            want = tbl["expect_object_type"]
+            got = (info.options.get("table_type") or "").upper() or "UNKNOWN"
+            chk(f"{fq} (object_type)", Status.PASS if got == want else Status.FAIL,
+                f"object type {got}", expected=want, actual=got)
 
         # Columns: existence + logical type (+ NUMERIC scale) + nullability + description.
         for col in tbl["columns"]:
